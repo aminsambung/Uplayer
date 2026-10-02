@@ -742,7 +742,7 @@ fun PlaylistList(
                             .background(UplayerSurface2),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.QueueMusic, null, tint = UplayerOrange)
+                        Text("📝", fontSize = 24.sp)
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
