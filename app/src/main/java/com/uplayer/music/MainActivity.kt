@@ -30,6 +30,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -41,11 +43,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -55,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
+import com.uplayer.music.data.local.FavoriteRepository
 import com.uplayer.music.domain.model.Track
 import com.uplayer.music.domain.model.formattedDuration
 import com.uplayer.music.player.AlbumArtHelper
@@ -77,10 +84,13 @@ import com.uplayer.music.player.PlayerManager
 import com.uplayer.music.ui.EqualizerScreen
 import com.uplayer.music.ui.TagEditorScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // ==================== COLORS ====================
 val UplayerOrange = Color(0xFFFF6B00)
+val UplayerRed = Color(0xFFEF4444)
 val UplayerDarkBg = Color(0xFF0F0F0F)
 val UplayerSurface = Color(0xFF1E1E1E)
 val UplayerSurface2 = Color(0xFF2C2C2C)
@@ -116,7 +126,7 @@ fun MainScreen() {
     var showEqualizer by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
 
-    // Tag Editor overlay (paling atas)
+    // Tag Editor overlay
     tagEditPath?.let { path ->
         TagEditorScreen(
             filePath = path,
@@ -243,9 +253,7 @@ fun MiniPlayer(
                 modifier = Modifier.fillMaxSize()
             )
         }
-
         Spacer(Modifier.width(12.dp))
-
         Column(Modifier.weight(1f)) {
             Text(
                 track.title, color = Color.White,
@@ -256,7 +264,6 @@ fun MiniPlayer(
                 fontSize = 11.sp, maxLines = 1
             )
         }
-
         IconButton(onClick = onPlayPause) {
             Text(
                 if (isPlaying) "⏸" else "▶",
@@ -277,6 +284,7 @@ fun LibraryScreen(
     onEditTag: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val permissions = remember {
         buildList {
@@ -298,20 +306,36 @@ fun LibraryScreen(
                     PackageManager.PERMISSION_GRANTED
         )
     }
-    var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var favoriteIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var isLoading by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = All, 1 = Favorites
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
     ) { result -> hasPermission = result[permissions[0]] == true }
 
+    // Load tracks
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             isLoading = true
-            tracks = loadTracksFromDevice(context)
+            allTracks = loadTracksFromDevice(context)
             isLoading = false
         }
+    }
+
+    // Observe favorites
+    LaunchedEffect(Unit) {
+        FavoriteRepository.observeFavoriteIds(context).collectLatest { ids ->
+            favoriteIds = ids.toSet()
+        }
+    }
+
+    val displayedTracks = if (selectedTab == 0) {
+        allTracks
+    } else {
+        allTracks.filter { it.id in favoriteIds }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -322,37 +346,83 @@ fun LibraryScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
+        if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
+            // Tab: Semua / Favorit
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = UplayerDarkBg,
+                contentColor = UplayerOrange
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        Text(
+                            "Semua (${allTracks.size})",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        Text(
+                            "❤️ Favorit (${favoriteIds.size})",
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                )
+            }
+        }
+
         when {
             !hasPermission -> PermissionContent(
                 onGrant = { permissionLauncher.launch(permissions) }
             )
             isLoading -> LoadingContent()
-            tracks.isEmpty() -> EmptyContent(
+            allTracks.isEmpty() -> EmptyContent(
                 onRetry = { permissionLauncher.launch(permissions) }
             )
+            displayedTracks.isEmpty() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("❤️", fontSize = 64.sp)
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Belum ada favorit",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Tap ikon hati di lagu untuk menambahkan",
+                            color = UplayerTextSecondary,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
             else -> {
-                Text(
-                    "${tracks.size} lagu ditemukan",
-                    color = UplayerTextSecondary, fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-                Text(
-                    "Long-press lagu untuk edit info",
-                    color = UplayerTextSecondary.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 0.dp)
-                )
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
-                    items(tracks, key = { it.id }) { track ->
+                    items(displayedTracks, key = { it.id }) { track ->
                         TrackRow(
                             track = track,
                             isPlaying = playerManager.currentTrack?.id == track.id
                                     && playerManager.isPlaying,
-                            onClick = { playerManager.playTrack(track, tracks) },
-                            onLongClick = { selectedTrackForAction = track }
+                            isFavorite = track.id in favoriteIds,
+                            onClick = { playerManager.playTrack(track, displayedTracks) },
+                            onLongClick = { selectedTrackForAction = track },
+                            onFavoriteToggle = {
+                                scope.launch {
+                                    FavoriteRepository.toggleFavorite(context, track.id)
+                                }
+                            }
                         )
                         Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
                     }
@@ -361,14 +431,15 @@ fun LibraryScreen(
         }
     }
 
-    // ===== BOTTOM SHEET =====
+    // Bottom sheet
     selectedTrackForAction?.let { track ->
-        androidx.compose.material3.ModalBottomSheet(
+        ModalBottomSheet(
             onDismissRequest = { selectedTrackForAction = null },
             containerColor = UplayerSurface
         ) {
             TrackActionSheet(
                 track = track,
+                isFavorite = track.id in favoriteIds,
                 onDismiss = { selectedTrackForAction = null },
                 onEditTag = {
                     if (track.filePath.isNotBlank()) {
@@ -377,7 +448,13 @@ fun LibraryScreen(
                     selectedTrackForAction = null
                 },
                 onPlay = {
-                    playerManager.playTrack(track, tracks)
+                    playerManager.playTrack(track, allTracks)
+                    selectedTrackForAction = null
+                },
+                onFavoriteToggle = {
+                    scope.launch {
+                        FavoriteRepository.toggleFavorite(context, track.id)
+                    }
                     selectedTrackForAction = null
                 }
             )
@@ -389,16 +466,17 @@ fun LibraryScreen(
 @Composable
 fun TrackActionSheet(
     track: Track,
+    isFavorite: Boolean,
     onDismiss: () -> Unit,
     onEditTag: () -> Unit,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onFavoriteToggle: () -> Unit
 ) {
     Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp)
     ) {
-        // Header
         Row(
             Modifier
                 .fillMaxWidth()
@@ -438,8 +516,12 @@ fun TrackActionSheet(
 
         Divider(color = UplayerSurface2)
 
-        // Actions
         SheetAction("▶", "Putar Sekarang", onPlay)
+        SheetAction(
+            if (isFavorite) "💔" else "❤️",
+            if (isFavorite) "Hapus dari Favorit" else "Tambah ke Favorit",
+            onFavoriteToggle
+        )
         SheetAction("✏️", "Edit Info Lagu", onEditTag)
         SheetAction("ℹ️", "Info File", onDismiss)
     }
@@ -536,8 +618,10 @@ fun EmptyContent(onRetry: () -> Unit) {
 fun TrackRow(
     track: Track,
     isPlaying: Boolean = false,
+    isFavorite: Boolean = false,
     onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    onFavoriteToggle: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -586,6 +670,16 @@ fun TrackRow(
             Text(
                 track.artist, color = UplayerTextSecondary,
                 fontSize = 12.sp, maxLines = 1
+            )
+        }
+
+        // Favorite button
+        IconButton(onClick = onFavoriteToggle) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite
+                              else Icons.Filled.FavoriteBorder,
+                contentDescription = if (isFavorite) "Hapus favorit" else "Tambah favorit",
+                tint = if (isFavorite) UplayerRed else UplayerTextSecondary
             )
         }
 
