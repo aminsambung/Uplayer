@@ -8,6 +8,7 @@ data class Track(
     val albumId: Long,
     val durationMs: Long,
     val uri: String = "",
+    val filePath: String = "",
     val isFavorite: Boolean = false
 )
 
