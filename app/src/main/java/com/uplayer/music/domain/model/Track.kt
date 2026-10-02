@@ -5,6 +5,7 @@ data class Track(
     val title: String,
     val artist: String,
     val album: String,
+    val albumId: Long,
     val durationMs: Long,
     val uri: String = "",
     val isFavorite: Boolean = false
