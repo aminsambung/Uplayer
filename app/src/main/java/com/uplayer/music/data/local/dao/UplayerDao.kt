@@ -16,9 +16,6 @@ interface UplayerDao {
     @Query("SELECT trackId FROM favorites")
     fun observeFavoriteIds(): Flow<List<Long>>
 
-    @Query("SELECT trackId FROM favorites")
-    suspend fun getFavoriteIds(): List<Long>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addFavorite(fav: FavoriteEntity)
 
@@ -40,9 +37,6 @@ interface UplayerDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addTrackToPlaylist(item: PlaylistTrackEntity)
-
-    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
-    suspend fun removeTrackFromPlaylist(playlistId: Long, trackId: Long)
 
     @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
     fun observePlaylistTrackIds(playlistId: Long): Flow<List<Long>>
