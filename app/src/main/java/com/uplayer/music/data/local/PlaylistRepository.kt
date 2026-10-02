@@ -11,14 +11,19 @@ object PlaylistRepository {
 
     private fun dao(context: Context) = DatabaseProvider.get(context).dao()
 
+    // ==================== OBSERVE ====================
     fun observePlaylists(context: Context): Flow<List<PlaylistEntity>> {
         return dao(context).observePlaylists()
     }
 
-    fun observePlaylistTracks(context: Context, playlistId: Long): Flow<List<Long>> {
+    fun observePlaylistTracks(
+        context: Context,
+        playlistId: Long
+    ): Flow<List<Long>> {
         return dao(context).observePlaylistTrackIds(playlistId)
     }
 
+    // ==================== CREATE / DELETE PLAYLIST ====================
     suspend fun createPlaylist(context: Context, name: String): Long =
         withContext(Dispatchers.IO) {
             dao(context).createPlaylist(PlaylistEntity(name = name))
@@ -29,6 +34,7 @@ object PlaylistRepository {
             dao(context).deletePlaylist(playlistId)
         }
 
+    // ==================== ADD / REMOVE TRACK ====================
     suspend fun addTrackToPlaylist(
         context: Context,
         playlistId: Long,
@@ -36,7 +42,11 @@ object PlaylistRepository {
         position: Int
     ) = withContext(Dispatchers.IO) {
         dao(context).addTrackToPlaylist(
-            PlaylistTrackEntity(playlistId, trackId, position)
+            PlaylistTrackEntity(
+                playlistId = playlistId,
+                trackId = trackId,
+                position = position
+            )
         )
     }
 
