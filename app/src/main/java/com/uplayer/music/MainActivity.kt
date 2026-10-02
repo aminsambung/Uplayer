@@ -72,6 +72,8 @@ import com.uplayer.music.domain.model.formattedDuration
 import com.uplayer.music.player.AlbumArtHelper
 import com.uplayer.music.player.NowPlayingScreen
 import com.uplayer.music.player.PlayerManager
+import com.uplayer.music.ui.EqualizerScreen
+import com.uplayer.music.ui.TagEditorScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -94,10 +96,7 @@ class MainActivity : ComponentActivity() {
                     surface = UplayerSurface
                 )
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = UplayerDarkBg
-                ) {
+                Surface(Modifier.fillMaxSize(), color = UplayerDarkBg) {
                     MainScreen()
                 }
             }
@@ -112,11 +111,33 @@ fun MainScreen() {
     val playerManager = remember { PlayerManager.getInstance(context) }
     var selectedTab by remember { mutableStateOf(0) }
     var showNowPlaying by remember { mutableStateOf(false) }
+    var showEqualizer by remember { mutableStateOf(false) }
+    var tagEditPath by remember { mutableStateOf<String?>(null) }
 
+    // Now Playing overlay
     if (showNowPlaying) {
         NowPlayingScreen(
             playerManager = playerManager,
             onClose = { showNowPlaying = false }
+        )
+        return
+    }
+
+    // Equalizer overlay
+    if (showEqualizer) {
+        EqualizerScreen(
+            audioSessionId = playerManager.getAudioSessionId(),
+            onClose = { showEqualizer = false }
+        )
+        return
+    }
+
+    // Tag editor overlay
+    tagEditPath?.let { path ->
+        TagEditorScreen(
+            filePath = path,
+            onClose = { tagEditPath = null },
+            onSaved = { tagEditPath = null }
         )
         return
     }
@@ -165,9 +186,14 @@ fun MainScreen() {
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> LibraryScreen(playerManager)
+                0 -> LibraryScreen(
+                    playerManager = playerManager,
+                    onEditTag = { path -> tagEditPath = path }
+                )
                 1 -> PlaceholderScreen("Search", Icons.Filled.Search)
-                2 -> PlaceholderScreen("Settings", Icons.Filled.Settings)
+                2 -> SettingsScreen(
+                    onOpenEqualizer = { showEqualizer = true }
+                )
             }
         }
     }
@@ -217,28 +243,21 @@ fun MiniPlayer(
 
         Column(Modifier.weight(1f)) {
             Text(
-                text = track.title,
-                color = Color.White,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                maxLines = 1
+                track.title, color = Color.White,
+                fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1
             )
             Text(
-                text = track.artist,
-                color = UplayerTextSecondary,
-                fontSize = 11.sp,
-                maxLines = 1
+                track.artist, color = UplayerTextSecondary,
+                fontSize = 11.sp, maxLines = 1
             )
         }
 
         IconButton(onClick = onPlayPause) {
             Text(
-                text = if (isPlaying) "⏸" else "▶",
-                fontSize = 22.sp,
-                color = UplayerOrange
+                if (isPlaying) "⏸" else "▶",
+                fontSize = 22.sp, color = UplayerOrange
             )
         }
-
         IconButton(onClick = onNext) {
             Text("⏭", fontSize = 20.sp, color = Color.White)
         }
@@ -248,7 +267,10 @@ fun MiniPlayer(
 // ==================== LIBRARY SCREEN ====================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(playerManager: PlayerManager) {
+fun LibraryScreen(
+    playerManager: PlayerManager,
+    onEditTag: (String) -> Unit
+) {
     val context = LocalContext.current
 
     val permissions = remember {
@@ -271,15 +293,12 @@ fun LibraryScreen(playerManager: PlayerManager) {
                     PackageManager.PERMISSION_GRANTED
         )
     }
-
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
-    ) { result ->
-        hasPermission = result[permissions[0]] == true
-    }
+    ) { result -> hasPermission = result[permissions[0]] == true }
 
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
@@ -294,9 +313,7 @@ fun LibraryScreen(playerManager: PlayerManager) {
             title = {
                 Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = UplayerDarkBg
-            )
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
         when {
@@ -309,9 +326,8 @@ fun LibraryScreen(playerManager: PlayerManager) {
             )
             else -> {
                 Text(
-                    text = "${tracks.size} lagu ditemukan",
-                    color = UplayerTextSecondary,
-                    fontSize = 13.sp,
+                    "${tracks.size} lagu ditemukan",
+                    color = UplayerTextSecondary, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 LazyColumn(
@@ -323,8 +339,11 @@ fun LibraryScreen(playerManager: PlayerManager) {
                             track = track,
                             isPlaying = playerManager.currentTrack?.id == track.id
                                     && playerManager.isPlaying,
-                            onClick = {
-                                playerManager.playTrack(track, tracks)
+                            onClick = { playerManager.playTrack(track, tracks) },
+                            onLongClick = {
+                                if (track.filePath.isNotBlank()) {
+                                    onEditTag(track.filePath)
+                                }
                             }
                         )
                         Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
@@ -339,25 +358,20 @@ fun LibraryScreen(playerManager: PlayerManager) {
 @Composable
 fun PermissionContent(onGrant: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🎵", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
         Text(
-            "Izinkan Akses Musik",
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
+            "Izinkan Akses Musik", color = Color.White,
+            fontSize = 20.sp, fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Untuk memutar musik dari perangkatmu, Uplayer butuh izin mengakses file audio.",
-            color = UplayerTextSecondary,
-            fontSize = 14.sp,
+            "Untuk memutar musik dari perangkatmu, Uplayer butuh izin.",
+            color = UplayerTextSecondary, fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(32.dp))
@@ -365,9 +379,7 @@ fun PermissionContent(onGrant: () -> Unit) {
             onClick = onGrant,
             colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange),
             shape = RoundedCornerShape(16.dp)
-        ) {
-            Text("Izinkan Akses Musik", fontWeight = FontWeight.Bold)
-        }
+        ) { Text("Izinkan Akses Musik", fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -385,34 +397,21 @@ fun LoadingContent() {
 @Composable
 fun EmptyContent(onRetry: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🔍", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
         Text(
-            "Tidak Ada Musik",
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "Uplayer tidak menemukan file audio di perangkat ini.",
-            color = UplayerTextSecondary,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center
+            "Tidak Ada Musik", color = Color.White,
+            fontSize = 20.sp, fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)
-        ) {
-            Text("Scan Ulang")
-        }
+        ) { Text("Scan Ulang") }
     }
 }
 
@@ -421,7 +420,8 @@ fun EmptyContent(onRetry: () -> Unit) {
 fun TrackRow(
     track: Track,
     isPlaying: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -446,16 +446,12 @@ fun TrackRow(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-
             if (isPlaying) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
+                    Modifier.fillMaxSize()
                         .background(UplayerOrange.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
-                ) {
-                    Text("⏸", fontSize = 20.sp, color = Color.White)
-                }
+                ) { Text("⏸", fontSize = 20.sp, color = Color.White) }
             }
         }
 
@@ -463,26 +459,57 @@ fun TrackRow(
 
         Column(Modifier.weight(1f)) {
             Text(
-                text = track.title,
+                track.title,
                 color = if (isPlaying) UplayerOrange else Color.White,
-                fontWeight = FontWeight.Medium,
-                fontSize = 15.sp,
-                maxLines = 1
+                fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = track.artist,
-                color = UplayerTextSecondary,
-                fontSize = 12.sp,
-                maxLines = 1
+                track.artist, color = UplayerTextSecondary,
+                fontSize = 12.sp, maxLines = 1
             )
         }
 
         Text(
-            text = track.formattedDuration(),
-            color = Color(0xFF6E6E6E),
-            fontSize = 12.sp
+            track.formattedDuration(),
+            color = Color(0xFF6E6E6E), fontSize = 12.sp
         )
+    }
+}
+
+// ==================== SETTINGS SCREEN ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(onOpenEqualizer: () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Settings", color = Color.White, fontWeight = FontWeight.Bold) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
+        )
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            SettingsItem("Equalizer", "Atur nada musik", onOpenEqualizer)
+        }
+    }
+}
+
+@Composable
+fun SettingsItem(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = UplayerTextSecondary, fontSize = 12.sp)
+        }
+        Text("›", color = UplayerTextSecondary, fontSize = 24.sp)
     }
 }
 
@@ -492,26 +519,16 @@ fun TrackRow(
 fun PlaceholderScreen(name: String, icon: ImageVector) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = {
-                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = UplayerDarkBg
-            )
+            title = { Text(name, color = Color.White, fontWeight = FontWeight.Bold) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    icon,
-                    null,
-                    tint = UplayerOrange,
-                    modifier = Modifier.size(72.dp)
-                )
+                Icon(icon, null, tint = UplayerOrange, modifier = Modifier.size(72.dp))
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "$name — Coming soon",
-                    color = UplayerTextSecondary,
-                    fontSize = 14.sp,
+                    color = UplayerTextSecondary, fontSize = 14.sp,
                     textAlign = TextAlign.Center
                 )
             }
@@ -530,7 +547,8 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -549,6 +567,7 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
             val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -569,7 +588,8 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
                             ?: "Unknown Album",
                         albumId = cursor.getLong(albumIdCol),
                         durationMs = cursor.getLong(durationCol),
-                        uri = uri
+                        uri = uri,
+                        filePath = cursor.getString(dataCol) ?: ""
                     )
                 )
             }
