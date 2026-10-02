@@ -1,10 +1,6 @@
 package com.uplayer.music.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,14 +47,13 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.uplayer.music.data.local.PlaylistRepository
 import com.uplayer.music.domain.model.Track
-import com.uplayer.music.domain.model.formattedDuration
 import com.uplayer.music.player.AlbumArtHelper
 import com.uplayer.music.player.PlayerManager
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 private val Orange = Color(0xFFFF6B00)
 private val DarkBg = Color(0xFF0F0F0F)
-private val Surface = Color(0xFF1E1E1E)
 private val Surface2 = Color(0xFF2C2C2C)
 private val TextSecondary = Color(0xFFB0B0B0)
 
@@ -71,6 +67,7 @@ fun PlaylistDetailScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var trackIds by remember { mutableStateOf<List<Long>>(emptyList()) }
 
     LaunchedEffect(playlistId) {
@@ -86,15 +83,10 @@ fun PlaylistDetailScreen(
         TopAppBar(
             title = {
                 Column {
-                    Text(
-                        playlistName,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(playlistName, color = Color.White, fontWeight = FontWeight.Bold)
                     Text(
                         "${playlistTracks.size} lagu",
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        color = TextSecondary, fontSize = 12.sp
                     )
                 }
             },
@@ -130,108 +122,70 @@ fun PlaylistDetailScreen(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Playlist masih kosong",
-                        color = Color.White,
-                        fontSize = 16.sp,
+                        color = Color.White, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Long-press lagu di Library untuk menambahkan",
-                        color = TextSecondary,
-                        fontSize = 13.sp,
+                        color = TextSecondary, fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 32.dp)
                     )
                 }
             }
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
+            LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                 items(playlistTracks, key = { it.id }) { track ->
-                    PlaylistTrackRow(
-                        track = track,
-                        isPlaying = playerManager.currentTrack?.id == track.id
-                                && playerManager.isPlaying,
-                        onClick = {
-                            playerManager.playTrack(track, playlistTracks)
-                        },
-                        onRemove = {
-                            kotlinx.coroutines.MainScope().launch {
-                                PlaylistRepository.removeTrackFromPlaylist(
-                                    context, playlistId, track.id
-                                )
-                            }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                                .background(Surface2)
+                        ) {
+                            AsyncImage(
+                                model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
-                    )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                track.title,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp, maxLines = 1
+                            )
+                            Text(
+                                track.artist,
+                                color = TextSecondary,
+                                fontSize = 12.sp, maxLines = 1
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    PlaylistRepository.removeTrackFromPlaylist(
+                                        context, playlistId, track.id
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                "Hapus dari playlist",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun PlaylistTrackRow(
-    track: Track,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick)
-            .background(
-                if (isPlaying) Orange.copy(alpha = 0.1f) else Color.Transparent
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
-                .background(Surface2)
-        ) {
-            AsyncImage(
-                model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            if (isPlaying) {
-                Box(
-                    Modifier.fillMaxSize().background(Orange.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) { Text("⏸", fontSize = 20.sp, color = Color.White) }
-            }
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(
-                track.title,
-                color = if (isPlaying) Orange else Color.White,
-                fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                track.artist, color = TextSecondary,
-                fontSize = 12.sp, maxLines = 1
-            )
-        }
-
-        IconButton(onClick = onRemove) {
-            Icon(
-                Icons.Filled.Delete,
-                contentDescription = "Hapus dari playlist",
-                tint = TextSecondary
-            )
-        }
-    }
-}
-
-// Helper — supaya tidak perlu import launch di atas
-private val kotlinx.coroutines.MainScope = kotlinx.coroutines.CoroutineScope(
-    kotlinx.coroutines.Dispatchers.Main
-)
