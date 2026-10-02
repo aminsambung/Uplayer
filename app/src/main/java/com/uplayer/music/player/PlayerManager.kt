@@ -110,8 +110,15 @@ class PlayerManager private constructor(context: Context) {
     }
 
     fun currentPosition(): Long = controller?.currentPosition ?: 0L
+
     fun duration(): Long = controller?.duration?.coerceAtLeast(0L) ?: 0L
-    fun getAudioSessionId(): Int = controller?.audioSessionId ?: 0
+
+    /**
+     * Audio session ID tidak tersedia via MediaController di Media3 1.2.0.
+     * Return 0 → Equalizer tidak aktif sementara.
+     * Nanti akan di-expose via PlaybackService custom command.
+     */
+    fun getAudioSessionId(): Int = 0
 
     fun toggleShuffle() {
         val c = controller ?: return
