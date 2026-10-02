@@ -18,14 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,7 +36,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -93,21 +93,21 @@ fun MainScreen() {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Rounded.LibraryMusic, null) },
+                    icon = { Icon(Icons.Filled.Home, null) },
                     label = { Text("Library") },
                     colors = navItemColors()
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Rounded.Search, null) },
+                    icon = { Icon(Icons.Filled.Search, null) },
                     label = { Text("Search") },
                     colors = navItemColors()
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Rounded.Settings, null) },
+                    icon = { Icon(Icons.Filled.Settings, null) },
                     label = { Text("Settings") },
                     colors = navItemColors()
                 )
@@ -117,8 +117,8 @@ fun MainScreen() {
         Box(Modifier.padding(padding)) {
             when (selectedTab) {
                 0 -> LibraryScreen()
-                1 -> PlaceholderScreen("Search", Icons.Rounded.Search)
-                2 -> PlaceholderScreen("Settings", Icons.Rounded.Settings)
+                1 -> PlaceholderScreen("Search", Icons.Filled.Search)
+                2 -> PlaceholderScreen("Settings", Icons.Filled.Settings)
             }
         }
     }
@@ -141,8 +141,7 @@ fun LibraryScreen() {
         TopAppBar(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🎧 ", fontSize = 20.sp)
-                    Text("Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
@@ -161,7 +160,7 @@ fun LibraryScreen() {
         ) {
             items(SampleData.tracks, key = { it.id }) { track ->
                 TrackRow(track)
-                HorizontalDivider(color = Color(0xFF2C2C2C), thickness = 1.dp)
+                Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
             }
         }
     }
@@ -184,7 +183,7 @@ fun TrackRow(track: Track) {
                 .background(UplayerSurface),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Rounded.MusicNote, null, tint = UplayerOrange)
+            Text("🎵", fontSize = 20.sp)
         }
 
         Spacer(Modifier.width(12.dp))
@@ -217,7 +216,7 @@ fun TrackRow(track: Track) {
 // ==================== PLACEHOLDER ====================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaceholderScreen(name: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun PlaceholderScreen(name: String, icon: ImageVector) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(name, color = Color.White, fontWeight = FontWeight.Bold) },
