@@ -12,13 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,16 +33,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.uplayer.music.domain.model.Track
-import com.uplayer.music.domain.model.formattedDuration
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
-// Warna lokal supaya file ini standalone
 private val Orange = Color(0xFFFF6B00)
 private val Purple = Color(0xFF8A2BE2)
 private val DarkBg = Color(0xFF0F0F0F)
@@ -61,7 +56,6 @@ fun NowPlayingScreen(
     val track = playerManager.currentTrack ?: return
     val isPlaying = playerManager.isPlaying
 
-    // Progress tracking
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(playerManager.duration()) }
     var isDragging by remember { mutableFloatStateOf(0f) }
@@ -117,7 +111,7 @@ fun NowPlayingScreen(
                     letterSpacing = 1.sp
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { /* TODO: share */ }) {
+                IconButton(onClick = { }) {
                     Icon(
                         Icons.Filled.Share,
                         contentDescription = "Bagikan",
@@ -146,9 +140,11 @@ fun NowPlayingScreen(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "🎵",
-                        fontSize = 100.sp
+                    AsyncImage(
+                        model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
@@ -203,7 +199,9 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()),
+                    text = formatMs(
+                        if (isDragging == 1f) dragValue.toLong() else position.toLong()
+                    ),
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
@@ -267,8 +265,8 @@ fun NowPlayingScreen(
                 IconButton(onClick = { playerManager.cycleRepeatMode() }) {
                     Text(
                         text = when (playerManager.repeatMode) {
-                            1 -> "🔁"   // repeat all
-                            2 -> "🔂"   // repeat one
+                            1 -> "🔁"
+                            2 -> "🔂"
                             else -> "🔁"
                         },
                         fontSize = 24.sp,
@@ -282,7 +280,6 @@ fun NowPlayingScreen(
     }
 }
 
-// ==================== HELPERS ====================
 private fun formatMs(ms: Long): String {
     val totalSec = ms / 1000
     val min = totalSec / 60
