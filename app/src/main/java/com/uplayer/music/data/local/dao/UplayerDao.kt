@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface UplayerDao {
 
-    // ===== FAVORIT =====
+    // ==================== FAVORIT ====================
     @Query("SELECT trackId FROM favorites")
     fun observeFavoriteIds(): Flow<List<Long>>
 
@@ -25,7 +25,7 @@ interface UplayerDao {
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE trackId = :trackId)")
     suspend fun isFavorite(trackId: Long): Boolean
 
-    // ===== PLAYLIST =====
+    // ==================== PLAYLIST ====================
     @Query("SELECT * FROM playlists ORDER BY createdAt DESC")
     fun observePlaylists(): Flow<List<PlaylistEntity>>
 
@@ -35,8 +35,12 @@ interface UplayerDao {
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     suspend fun deletePlaylist(playlistId: Long)
 
+    // ==================== PLAYLIST TRACKS ====================
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addTrackToPlaylist(item: PlaylistTrackEntity)
+
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
+    suspend fun removeTrackFromPlaylist(playlistId: Long, trackId: Long)
 
     @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position ASC")
     fun observePlaylistTrackIds(playlistId: Long): Flow<List<Long>>
