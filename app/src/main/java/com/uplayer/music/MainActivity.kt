@@ -97,6 +97,7 @@ import com.uplayer.music.ui.AlbumDetailScreen
 import com.uplayer.music.ui.EqualizerScreen
 import com.uplayer.music.ui.PlaylistDetailScreen
 import com.uplayer.music.ui.TagEditorScreen
+import com.uplayer.music.ui.WallpaperScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -138,12 +139,21 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(0) }
     var showNowPlaying by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
+    var showWallpaper by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
     var selectedPlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var selectedAlbum by remember { mutableStateOf<String?>(null) }
     var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
 
-    // Album Detail overlay
+    // ===== OVERLAY PRIORITY (paling atas) =====
+
+    // Wallpaper
+    if (showWallpaper) {
+        WallpaperScreen(onBack = { showWallpaper = false })
+        return
+    }
+
+    // Album Detail
     selectedAlbum?.let { albumName ->
         val albumTracks = allTracks
             .filter { it.album == albumName }
@@ -157,7 +167,7 @@ fun MainScreen() {
         return
     }
 
-    // Playlist Detail overlay
+    // Playlist Detail
     selectedPlaylist?.let { (id, name) ->
         PlaylistDetailScreen(
             playlistId = id,
@@ -169,7 +179,7 @@ fun MainScreen() {
         return
     }
 
-    // Tag Editor overlay
+    // Tag Editor
     tagEditPath?.let { path ->
         TagEditorScreen(
             filePath = path,
@@ -179,7 +189,7 @@ fun MainScreen() {
         return
     }
 
-    // Equalizer overlay
+    // Equalizer
     if (showEqualizer) {
         LaunchedEffect(Unit) { playerManager.refreshAudioSessionId() }
         EqualizerScreen(
@@ -189,7 +199,7 @@ fun MainScreen() {
         return
     }
 
-    // Now Playing overlay
+    // Now Playing
     if (showNowPlaying) {
         NowPlayingScreen(
             playerManager = playerManager,
@@ -198,6 +208,7 @@ fun MainScreen() {
         return
     }
 
+    // ===== MAIN SCAFFOLD =====
     Scaffold(
         containerColor = UplayerDarkBg,
         bottomBar = {
@@ -250,7 +261,10 @@ fun MainScreen() {
                     onAlbumClick = { albumName -> selectedAlbum = albumName }
                 )
                 1 -> PlaceholderScreen("Search", Icons.Filled.Search)
-                2 -> SettingsScreen(onOpenEqualizer = { showEqualizer = true })
+                2 -> SettingsScreen(
+                    onOpenEqualizer = { showEqualizer = true },
+                    onOpenWallpaper = { showWallpaper = true }
+                )
             }
         }
     }
@@ -517,7 +531,7 @@ fun LibraryScreen(
         }
     }
 
-    // Bottom sheet action
+    // ===== BOTTOM SHEET ACTION =====
     selectedTrackForAction?.let { track ->
         ModalBottomSheet(
             onDismissRequest = { selectedTrackForAction = null },
@@ -546,7 +560,7 @@ fun LibraryScreen(
         }
     }
 
-    // Add to playlist sheet
+    // ===== ADD TO PLAYLIST SHEET =====
     if (showAddToPlaylistSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -580,7 +594,7 @@ fun LibraryScreen(
         }
     }
 
-    // Create playlist dialog
+    // ===== CREATE PLAYLIST DIALOG =====
     if (showCreatePlaylistDialog) {
         CreatePlaylistDialog(
             onDismiss = { showCreatePlaylistDialog = false },
@@ -1098,7 +1112,10 @@ fun TrackRow(
 // ==================== SETTINGS SCREEN ====================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onOpenEqualizer: () -> Unit) {
+fun SettingsScreen(
+    onOpenEqualizer: () -> Unit,
+    onOpenWallpaper: () -> Unit
+) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Settings", color = Color.White, fontWeight = FontWeight.Bold) },
@@ -1106,6 +1123,7 @@ fun SettingsScreen(onOpenEqualizer: () -> Unit) {
         )
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             SettingsItem("Equalizer", "Atur nada musik", onOpenEqualizer)
+            SettingsItem("Wallpaper", "Kustom tampilan Now Playing", onOpenWallpaper)
         }
     }
 }
