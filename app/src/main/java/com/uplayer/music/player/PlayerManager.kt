@@ -1,151 +1,62 @@
 package com.uplayer.music.player
 
-import android.content.ComponentName
-import android.content.Context
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.core.content.ContextCompat
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import com.uplayer.music.domain.model.Track
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import com.uplayer.music.MainActivity
 
-class PlayerManager private constructor(context: Context) {
+class PlaybackService : MediaSessionService() {
 
-    private val appContext = context.applicationContext
-    private var controller: MediaController? = null
-    private var playlist: List<Track> = emptyList()
+    private var mediaSession: MediaSession? = null
 
-    var currentTrack by mutableStateOf<Track?>(null)
-        private set
+    override fun onCreate() {
+        super.onCreate()
 
-    var isPlaying by mutableStateOf(false)
-        private set
+        val player = ExoPlayer.Builder(this)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build(),
+                /* handleAudioFocus = */ true
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
 
-    var isConnected by mutableStateOf(false)
-        private set
-
-    // 0 = off, 1 = shuffle on
-    var isShuffleOn by mutableStateOf(false)
-        private set
-
-    // 0 = off, 1 = repeat all, 2 = repeat one
-    var repeatMode by mutableIntStateOf(0)
-        private set
-
-    init {
-        val sessionToken = SessionToken(
-            appContext,
-            ComponentName(appContext, PlaybackService::class.java)
+        val sessionActivityIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val future = MediaController.Builder(appContext, sessionToken).buildAsync()
-
-        future.addListener({
-            try {
-                val c = future.get()
-                controller = c
-
-                c.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(playing: Boolean) {
-                        isPlaying = playing
-                    }
-
-                    override fun onMediaItemTransition(
-                        mediaItem: MediaItem?,
-                        reason: Int
-                    ) {
-                        val idx = c.currentMediaItemIndex
-                        currentTrack = playlist.getOrNull(idx)
-                    }
-
-                    override fun onShuffleModeEnabledChanged(enabled: Boolean) {
-                        isShuffleOn = enabled
-                    }
-
-                    override fun onRepeatModeChanged(mode: Int) {
-                        repeatMode = when (mode) {
-                            Player.REPEAT_MODE_ONE -> 2
-                            Player.REPEAT_MODE_ALL -> 1
-                            else -> 0
-                        }
-                    }
-                })
-
-                isConnected = true
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }, ContextCompat.getMainExecutor(appContext))
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivityIntent)
+            .build()
     }
 
-    fun playTrack(track: Track, tracks: List<Track>) {
-        val c = controller ?: return
-        if (track.uri.isBlank()) return
+    override fun onGetSession(
+        controllerInfo: MediaSession.ControllerInfo
+    ): MediaSession? = mediaSession
 
-        playlist = tracks
-        val index = tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
-        val items = tracks
-            .filter { it.uri.isNotBlank() }
-            .map { MediaItem.fromUri(it.uri) }
-
-        c.setMediaItems(items, index, 0L)
-        c.prepare()
-        c.play()
-        currentTrack = track
-    }
-
-    fun togglePlayPause() {
-        val c = controller ?: return
-        if (c.isPlaying) c.pause() else c.play()
-    }
-
-    fun next() {
-        controller?.seekToNextMediaItem()
-    }
-
-    fun previous() {
-        controller?.seekToPreviousMediaItem()
-    }
-
-    fun seekTo(ms: Long) {
-        controller?.seekTo(ms)
-    }
-
-    fun currentPosition(): Long = controller?.currentPosition ?: 0L
-
-    fun duration(): Long = controller?.duration?.coerceAtLeast(0L) ?: 0L
-
-    fun toggleShuffle() {
-        val c = controller ?: return
-        c.shuffleModeEnabled = !c.shuffleModeEnabled
-    }
-
-    fun cycleRepeatMode() {
-        val c = controller ?: return
-        c.repeatMode = when (c.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val player = mediaSession?.player
+        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+            stopSelf()
         }
     }
 
-    fun release() {
-        controller?.release()
-        controller = null
-    }
-
-    companion object {
-        @Volatile
-        private var instance: PlayerManager? = null
-
-        fun getInstance(context: Context): PlayerManager {
-            return instance ?: synchronized(this) {
-                instance ?: PlayerManager(context).also { instance = it }
-            }
+    override fun onDestroy() {
+        mediaSession?.run {
+            player.release()
+            release()
         }
+        mediaSession = null
+        super.onDestroy()
     }
 }
