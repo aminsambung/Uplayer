@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,16 +28,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -92,6 +94,7 @@ import com.uplayer.music.domain.model.formattedDuration
 import com.uplayer.music.player.AlbumArtHelper
 import com.uplayer.music.player.NowPlayingScreen
 import com.uplayer.music.player.PlayerManager
+import com.uplayer.music.ui.AlbumDetailScreen
 import com.uplayer.music.ui.EqualizerScreen
 import com.uplayer.music.ui.PlaylistDetailScreen
 import com.uplayer.music.ui.TagEditorScreen
@@ -138,7 +141,22 @@ fun MainScreen() {
     var showEqualizer by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
     var selectedPlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var selectedAlbum by remember { mutableStateOf<String?>(null) }
     var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+
+    // Album Detail overlay
+    selectedAlbum?.let { albumName ->
+        val albumTracks = allTracks
+            .filter { it.album == albumName }
+            .sortedBy { it.title }
+        AlbumDetailScreen(
+            albumName = albumName,
+            tracks = albumTracks,
+            playerManager = playerManager,
+            onBack = { selectedAlbum = null }
+        )
+        return
+    }
 
     // Playlist Detail overlay
     selectedPlaylist?.let { (id, name) ->
@@ -152,7 +170,7 @@ fun MainScreen() {
         return
     }
 
-    // Tag Editor
+    // Tag Editor overlay
     tagEditPath?.let { path ->
         TagEditorScreen(
             filePath = path,
@@ -162,7 +180,7 @@ fun MainScreen() {
         return
     }
 
-    // Equalizer
+    // Equalizer overlay
     if (showEqualizer) {
         LaunchedEffect(Unit) { playerManager.refreshAudioSessionId() }
         EqualizerScreen(
@@ -172,7 +190,7 @@ fun MainScreen() {
         return
     }
 
-    // Now Playing
+    // Now Playing overlay
     if (showNowPlaying) {
         NowPlayingScreen(
             playerManager = playerManager,
@@ -229,9 +247,8 @@ fun MainScreen() {
                     playerManager = playerManager,
                     onEditTag = { path -> tagEditPath = path },
                     onTracksLoaded = { tracks -> allTracks = tracks },
-                    onPlaylistClick = { id, name ->
-                        selectedPlaylist = id to name
-                    }
+                    onPlaylistClick = { id, name -> selectedPlaylist = id to name },
+                    onAlbumClick = { albumName -> selectedAlbum = albumName }
                 )
                 1 -> PlaceholderScreen("Search", Icons.Filled.Search)
                 2 -> SettingsScreen(onOpenEqualizer = { showEqualizer = true })
@@ -306,7 +323,8 @@ fun LibraryScreen(
     playerManager: PlayerManager,
     onEditTag: (String) -> Unit,
     onTracksLoaded: (List<Track>) -> Unit,
-    onPlaylistClick: (Long, String) -> Unit
+    onPlaylistClick: (Long, String) -> Unit,
+    onAlbumClick: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -335,7 +353,7 @@ fun LibraryScreen(
     var favoriteIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var playlists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) } // 0=All, 1=Fav, 2=Playlist
+    var selectedTab by remember { mutableStateOf(0) }
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -397,10 +415,10 @@ fun LibraryScreen(
                     onClick = { selectedTab = 0 },
                     text = {
                         Text(
-                            "Semua",
+                            "Songs",
                             fontWeight = if (selectedTab == 0) FontWeight.Bold
                                          else FontWeight.Normal,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
                 )
@@ -412,7 +430,7 @@ fun LibraryScreen(
                             "❤️ ${favoriteIds.size}",
                             fontWeight = if (selectedTab == 1) FontWeight.Bold
                                          else FontWeight.Normal,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
                 )
@@ -424,7 +442,19 @@ fun LibraryScreen(
                             "📝 ${playlists.size}",
                             fontWeight = if (selectedTab == 2) FontWeight.Bold
                                          else FontWeight.Normal,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = {
+                        Text(
+                            "Albums",
+                            fontWeight = if (selectedTab == 3) FontWeight.Bold
+                                         else FontWeight.Normal,
+                            fontSize = 12.sp
                         )
                     }
                 )
@@ -440,7 +470,6 @@ fun LibraryScreen(
                 onRetry = { permissionLauncher.launch(permissions) }
             )
             selectedTab == 2 -> {
-                // Playlist list
                 PlaylistList(
                     playlists = playlists,
                     onClick = { playlist ->
@@ -452,6 +481,12 @@ fun LibraryScreen(
                         }
                     },
                     onCreateClick = { showCreatePlaylistDialog = true }
+                )
+            }
+            selectedTab == 3 -> {
+                AlbumGrid(
+                    tracks = allTracks,
+                    onClick = { albumName -> onAlbumClick(albumName) }
                 )
             }
             displayedTracks.isEmpty() -> {
@@ -483,7 +518,7 @@ fun LibraryScreen(
         }
     }
 
-    // Bottom sheet
+    // Bottom sheet action
     selectedTrackForAction?.let { track ->
         ModalBottomSheet(
             onDismissRequest = { selectedTrackForAction = null },
@@ -507,9 +542,7 @@ fun LibraryScreen(
                     }
                     selectedTrackForAction = null
                 },
-                onAddToPlaylist = {
-                    showAddToPlaylistSheet = true
-                }
+                onAddToPlaylist = { showAddToPlaylistSheet = true }
             )
         }
     }
@@ -529,13 +562,6 @@ fun LibraryScreen(
                     val track = selectedTrackForAction
                     if (track != null) {
                         scope.launch {
-                            val pos = playlist.id.let { pid ->
-                                // Posisi sederhana: jumlah track + 1
-                                kotlinx.coroutines.withContext(Dispatchers.IO) {
-                                    PlaylistRepository
-                                        .observePlaylistTracks(context, pid)
-                                }
-                            }
                             PlaylistRepository.addTrackToPlaylist(
                                 context,
                                 playlist.id,
@@ -565,6 +591,107 @@ fun LibraryScreen(
                 }
                 showCreatePlaylistDialog = false
             }
+        )
+    }
+}
+
+// ==================== ALBUM GRID ====================
+@Composable
+fun AlbumGrid(
+    tracks: List<Track>,
+    onClick: (String) -> Unit
+) {
+    val albums = tracks
+        .groupBy { it.album }
+        .filterKeys { it.isNotBlank() && it != "Unknown Album" }
+        .toList()
+        .sortedBy { it.first.lowercase() }
+
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            text = "${albums.size} album ditemukan",
+            color = UplayerTextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        if (albums.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("💿", fontSize = 64.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Belum ada album",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(
+                    items = albums,
+                    key = { it.first }
+                ) { (albumName, albumTracks) ->
+                    AlbumCard(
+                        albumName = albumName,
+                        trackCount = albumTracks.size,
+                        coverUrl = AlbumArtHelper.getAlbumArtUri(
+                            albumTracks.first().albumId
+                        ),
+                        onClick = { onClick(albumName) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AlbumCard(
+    albumName: String,
+    trackCount: Int,
+    coverUrl: android.net.Uri,
+    onClick: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(UplayerSurface)
+        ) {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = albumName,
+            color = Color.White,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "$trackCount lagu",
+            color = UplayerTextSecondary,
+            fontSize = 12.sp
         )
     }
 }
@@ -600,9 +727,7 @@ fun PlaylistList(
             }
         }
     } else {
-        LazyColumn(
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
+        LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
             items(playlists, key = { it.id }) { playlist ->
                 Row(
                     Modifier
@@ -618,11 +743,7 @@ fun PlaylistList(
                             .background(UplayerSurface2),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Filled.QueueMusic,
-                            null,
-                            tint = UplayerOrange
-                        )
+                        Icon(Icons.Filled.QueueMusic, null, tint = UplayerOrange)
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
@@ -729,9 +850,7 @@ fun AddToPlaylistSheet(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
         Divider(color = UplayerSurface2)
-
         SheetAction("➕", "Buat Playlist Baru", onCreateNew)
-
         if (playlists.isEmpty()) {
             Text(
                 "Belum ada playlist",
@@ -782,9 +901,7 @@ fun CreatePlaylistDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = UplayerSurface,
-        title = {
-            Text("Buat Playlist Baru", color = Color.White)
-        },
+        title = { Text("Buat Playlist Baru", color = Color.White) },
         text = {
             OutlinedTextField(
                 value = name,
@@ -803,9 +920,7 @@ fun CreatePlaylistDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    if (name.isNotBlank()) onCreate(name.trim())
-                },
+                onClick = { if (name.isNotBlank()) onCreate(name.trim()) },
                 enabled = name.isNotBlank()
             ) {
                 Text("Buat", color = UplayerOrange, fontWeight = FontWeight.Bold)
