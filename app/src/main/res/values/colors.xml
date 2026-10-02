@@ -1,0 +1,10 @@
+<resources>
+    <color name="uplayer_dark_bg">#0F0F0F</color>
+    <color name="uplayer_surface">#1E1E1E</color>
+    <color name="uplayer_surface2">#2C2C2C</color>
+    <color name="uplayer_orange">#FF6B00</color>
+    <color name="uplayer_purple">#8A2BE2</color>
+    <color name="uplayer_blue">#3B82F6</color>
+    <color name="uplayer_text_primary">#FFFFFF</color>
+    <color name="uplayer_text_secondary">#B0B0B0</color>
+</resources>
