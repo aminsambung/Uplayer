@@ -125,11 +125,15 @@ fun MainScreen() {
 
     // Equalizer overlay
     if (showEqualizer) {
-        EqualizerScreen(
-            audioSessionId = playerManager.getAudioSessionId(),
-            onClose = { showEqualizer = false }
-        )
-        return
+    // Refresh audioSessionId sebelum buka equalizer
+    LaunchedEffect(Unit) {
+        playerManager.refreshAudioSessionId()
+    }
+    EqualizerScreen(
+        audioSessionId = playerManager.audioSessionId,
+        onClose = { showEqualizer = false }
+    )
+    return
     }
 
     // Tag editor overlay
