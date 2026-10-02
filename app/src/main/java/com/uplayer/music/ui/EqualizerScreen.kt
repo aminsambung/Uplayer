@@ -1,4 +1,4 @@
-package com.uplayer.music.player
+package com.uplayer.music.ui
 
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
