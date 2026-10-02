@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Uplayer</string>
+    <string name="app_tagline">Your Music, Your Way</string>
+
+    <!-- Navigation -->
+    <string name="nav_library">Library</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Widget -->
+    <string name="widget_label">Uplayer</string>
+    <string name="widget_description">Kontrol musik dari home screen</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Uplayer Playback</string>
+    <string name="notification_channel_desc">Notifikasi pemutaran musik</string>
+</resources>
