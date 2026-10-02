@@ -9,10 +9,6 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.uplayer.music.MainActivity
 
-/**
- * Service yang menjalankan ExoPlayer di background.
- * Otomatis menampilkan notifikasi media + kontrol headphone Bluetooth.
- */
 class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
