@@ -2,6 +2,7 @@ package com.uplayer.music.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -10,7 +11,9 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.MoreExecutors
 import com.uplayer.music.domain.model.Track
 
 class PlayerManager private constructor(context: Context) {
@@ -28,6 +31,13 @@ class PlayerManager private constructor(context: Context) {
     var isShuffleOn by mutableStateOf(false)
         private set
     var repeatMode by mutableIntStateOf(0)
+        private set
+
+    /**
+     * Audio session ID dari ExoPlayer (di Service).
+     * Diambil via custom command setelah controller terhubung.
+     */
+    var audioSessionId by mutableIntStateOf(0)
         private set
 
     init {
@@ -70,10 +80,49 @@ class PlayerManager private constructor(context: Context) {
                 })
 
                 isConnected = true
+
+                // Minta audioSessionId dari Service
+                requestAudioSessionId()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(appContext))
+    }
+
+    /**
+     * Kirim custom command ke Service untuk ambil audioSessionId.
+     */
+    private fun requestAudioSessionId() {
+        val c = controller ?: return
+
+        val command = SessionCommand(
+            PlaybackService.CMD_GET_AUDIO_SESSION_ID,
+            Bundle.EMPTY
+        )
+
+        if (!c.isSessionCommandAvailable(command)) return
+
+        c.sendCustomCommand(command, Bundle.EMPTY)
+            .addListener({
+                try {
+                    val result = c.sendCustomCommand(command, Bundle.EMPTY).get()
+                    if (result.resultCode == 0) {
+                        val id = result.extras.getInt(
+                            PlaybackService.KEY_AUDIO_SESSION_ID,
+                            0
+                        )
+                        if (id != 0) {
+                            audioSessionId = id
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }, MoreExecutors.directExecutor())
+    }
+
+    fun refreshAudioSessionId() {
+        requestAudioSessionId()
     }
 
     fun playTrack(track: Track, tracks: List<Track>) {
@@ -90,6 +139,12 @@ class PlayerManager private constructor(context: Context) {
         c.prepare()
         c.play()
         currentTrack = track
+
+        // Audio session ID baru setelah playback mulai
+        // Delay sedikit agar ExoPlayer sudah prepare
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            requestAudioSessionId()
+        }, 500)
     }
 
     fun togglePlayPause() {
@@ -112,13 +167,6 @@ class PlayerManager private constructor(context: Context) {
     fun currentPosition(): Long = controller?.currentPosition ?: 0L
 
     fun duration(): Long = controller?.duration?.coerceAtLeast(0L) ?: 0L
-
-    /**
-     * Audio session ID tidak tersedia via MediaController di Media3 1.2.0.
-     * Return 0 → Equalizer tidak aktif sementara.
-     * Nanti akan di-expose via PlaybackService custom command.
-     */
-    fun getAudioSessionId(): Int = 0
 
     fun toggleShuffle() {
         val c = controller ?: return
