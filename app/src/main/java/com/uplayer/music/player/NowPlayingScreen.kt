@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,10 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -38,7 +35,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,13 +49,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
+// ==================== COLORS ====================
 private val Orange = Color(0xFFFF6B00)
 private val OrangeSoft = Color(0xFFFF8A3D)
 private val DarkBg = Color(0xFF0F0F0F)
@@ -67,6 +63,7 @@ private val Surface2 = Color(0xFF2C2C2C)
 private val SurfacePill = Color(0xFF1F1F1F)
 private val TextSecondary = Color(0xFFB0B0B0)
 
+// ==================== SCREEN ====================
 @Composable
 fun NowPlayingScreen(
     playerManager: PlayerManager,
@@ -137,7 +134,6 @@ fun NowPlayingScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.weight(1f))
-                // Toolbar icons (placeholder)
                 ToolbarIcon("🎛️")
                 ToolbarIcon("📊")
                 ToolbarIcon("📷")
@@ -210,7 +206,6 @@ fun NowPlayingScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             ) {
-                // Custom minimal slider (hanya thumb, tanpa track visible)
                 Slider(
                     value = if (isDragging == 1f) dragValue else position,
                     onValueChange = { v ->
@@ -457,7 +452,6 @@ private fun SleepTimerStrip() {
         SleepChip("60<")
         SleepChip("30<")
         SleepChip("5<")
-        // Center icon (sleep)
         Box(
             modifier = Modifier
                 .size(40.dp)
