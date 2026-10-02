@@ -57,6 +57,9 @@ dependencies {
 
     // Coil
     implementation("io.coil-kt:coil-compose:2.5.0")
+    
+    // Guava
+    implementation("com.google.guava:guava:32.1.3-android")
 
     // Room
     implementation("androidx.room:room-runtime:2.6.0")
