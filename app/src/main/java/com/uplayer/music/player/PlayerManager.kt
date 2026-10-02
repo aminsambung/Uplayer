@@ -3,6 +3,7 @@ package com.uplayer.music.player
 import android.content.ComponentName
 import android.content.Context
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
@@ -12,10 +13,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.uplayer.music.domain.model.Track
 
-/**
- * Wrapper untuk MediaController yang terhubung ke PlaybackService.
- * Menggantikan ExoPlayer langsung → mendukung background playback & notifikasi.
- */
 class PlayerManager private constructor(context: Context) {
 
     private val appContext = context.applicationContext
@@ -29,6 +26,14 @@ class PlayerManager private constructor(context: Context) {
         private set
 
     var isConnected by mutableStateOf(false)
+        private set
+
+    // 0 = off, 1 = shuffle on
+    var isShuffleOn by mutableStateOf(false)
+        private set
+
+    // 0 = off, 1 = repeat all, 2 = repeat one
+    var repeatMode by mutableIntStateOf(0)
         private set
 
     init {
@@ -56,11 +61,22 @@ class PlayerManager private constructor(context: Context) {
                         val idx = c.currentMediaItemIndex
                         currentTrack = playlist.getOrNull(idx)
                     }
+
+                    override fun onShuffleModeEnabledChanged(enabled: Boolean) {
+                        isShuffleOn = enabled
+                    }
+
+                    override fun onRepeatModeChanged(mode: Int) {
+                        repeatMode = when (mode) {
+                            Player.REPEAT_MODE_ONE -> 2
+                            Player.REPEAT_MODE_ALL -> 1
+                            else -> 0
+                        }
+                    }
                 })
 
                 isConnected = true
             } catch (e: Exception) {
-                // Gagal konek ke service — biarkan isConnected = false
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(appContext))
@@ -102,6 +118,20 @@ class PlayerManager private constructor(context: Context) {
     fun currentPosition(): Long = controller?.currentPosition ?: 0L
 
     fun duration(): Long = controller?.duration?.coerceAtLeast(0L) ?: 0L
+
+    fun toggleShuffle() {
+        val c = controller ?: return
+        c.shuffleModeEnabled = !c.shuffleModeEnabled
+    }
+
+    fun cycleRepeatMode() {
+        val c = controller ?: return
+        c.repeatMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+    }
 
     fun release() {
         controller?.release()
