@@ -429,4 +429,151 @@ fun TrackRow(
             .clickable { onClick() }
             .background(
                 if (isPlaying) UplayerOrange.copy(alpha = 0.1f)
-                else Color.
+                else Color.Transparent
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(UplayerSurface)
+        ) {
+            AsyncImage(
+                model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(UplayerOrange.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⏸", fontSize = 20.sp, color = Color.White)
+                }
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                color = if (isPlaying) UplayerOrange else Color.White,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = track.artist,
+                color = UplayerTextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1
+            )
+        }
+
+        Text(
+            text = track.formattedDuration(),
+            color = Color(0xFF6E6E6E),
+            fontSize = 12.sp
+        )
+    }
+}
+
+// ==================== PLACEHOLDER ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlaceholderScreen(name: String, icon: ImageVector) {
+    Column(Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = {
+                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = UplayerDarkBg
+            )
+        )
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    icon,
+                    null,
+                    tint = UplayerOrange,
+                    modifier = Modifier.size(72.dp)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "$name — Coming soon",
+                    color = UplayerTextSecondary,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+// ==================== MEDIA STORE QUERY ====================
+suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> =
+    withContext(Dispatchers.IO) {
+        val result = mutableListOf<Track>()
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION
+        )
+
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            null,
+            sortOrder
+        )?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idCol)
+                val uri = ContentUris.withAppendedId(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    id
+                ).toString()
+
+                result.add(
+                    Track(
+                        id = id,
+                        title = cursor.getString(titleCol) ?: "Unknown",
+                        artist = cursor.getString(artistCol)
+                            ?.takeIf { it.isNotBlank() && it != "<unknown>" }
+                            ?: "Unknown Artist",
+                        album = cursor.getString(albumCol)
+                            ?.takeIf { it.isNotBlank() && it != "<unknown>" }
+                            ?: "Unknown Album",
+                        albumId = cursor.getLong(albumIdCol),
+                        durationMs = cursor.getLong(durationCol),
+                        uri = uri
+                    )
+                )
+            }
+        }
+
+        result
+    }
