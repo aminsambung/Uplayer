@@ -10,8 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,34 +116,33 @@ fun MainScreen() {
     var showEqualizer by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
 
-    // Now Playing overlay
-    if (showNowPlaying) {
-        NowPlayingScreen(
-            playerManager = playerManager,
-            onClose = { showNowPlaying = false }
+    // Tag Editor overlay (paling atas)
+    tagEditPath?.let { path ->
+        TagEditorScreen(
+            filePath = path,
+            onClose = { tagEditPath = null },
+            onSaved = { tagEditPath = null }
         )
         return
     }
 
     // Equalizer overlay
     if (showEqualizer) {
-    // Refresh audioSessionId sebelum buka equalizer
-    LaunchedEffect(Unit) {
-        playerManager.refreshAudioSessionId()
-    }
-    EqualizerScreen(
-        audioSessionId = playerManager.audioSessionId,
-        onClose = { showEqualizer = false }
-    )
-    return
+        LaunchedEffect(Unit) {
+            playerManager.refreshAudioSessionId()
+        }
+        EqualizerScreen(
+            audioSessionId = playerManager.audioSessionId,
+            onClose = { showEqualizer = false }
+        )
+        return
     }
 
-    // Tag editor overlay
-    tagEditPath?.let { path ->
-        TagEditorScreen(
-            filePath = path,
-            onClose = { tagEditPath = null },
-            onSaved = { tagEditPath = null }
+    // Now Playing overlay
+    if (showNowPlaying) {
+        NowPlayingScreen(
+            playerManager = playerManager,
+            onClose = { showNowPlaying = false }
         )
         return
     }
@@ -299,6 +300,7 @@ fun LibraryScreen(
     }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
@@ -334,6 +336,12 @@ fun LibraryScreen(
                     color = UplayerTextSecondary, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
+                Text(
+                    "Long-press lagu untuk edit info",
+                    color = UplayerTextSecondary.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 0.dp)
+                )
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp)
@@ -344,17 +352,120 @@ fun LibraryScreen(
                             isPlaying = playerManager.currentTrack?.id == track.id
                                     && playerManager.isPlaying,
                             onClick = { playerManager.playTrack(track, tracks) },
-                            onLongClick = {
-                                if (track.filePath.isNotBlank()) {
-                                    onEditTag(track.filePath)
-                                }
-                            }
+                            onLongClick = { selectedTrackForAction = track }
                         )
                         Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
                     }
                 }
             }
         }
+    }
+
+    // ===== BOTTOM SHEET =====
+    selectedTrackForAction?.let { track ->
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedTrackForAction = null },
+            containerColor = UplayerSurface
+        ) {
+            TrackActionSheet(
+                track = track,
+                onDismiss = { selectedTrackForAction = null },
+                onEditTag = {
+                    if (track.filePath.isNotBlank()) {
+                        onEditTag(track.filePath)
+                    }
+                    selectedTrackForAction = null
+                },
+                onPlay = {
+                    playerManager.playTrack(track, tracks)
+                    selectedTrackForAction = null
+                }
+            )
+        }
+    }
+}
+
+// ==================== BOTTOM SHEET ====================
+@Composable
+fun TrackActionSheet(
+    track: Track,
+    onDismiss: () -> Unit,
+    onEditTag: () -> Unit,
+    onPlay: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    ) {
+        // Header
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(UplayerSurface2)
+            ) {
+                AsyncImage(
+                    model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    track.title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    maxLines = 2
+                )
+                Text(
+                    track.artist,
+                    color = UplayerTextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
+            }
+        }
+
+        Divider(color = UplayerSurface2)
+
+        // Actions
+        SheetAction("▶", "Putar Sekarang", onPlay)
+        SheetAction("✏️", "Edit Info Lagu", onEditTag)
+        SheetAction("ℹ️", "Info File", onDismiss)
+    }
+}
+
+@Composable
+private fun SheetAction(
+    emoji: String,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji, fontSize = 20.sp)
+        Spacer(Modifier.width(20.dp))
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -420,6 +531,7 @@ fun EmptyContent(onRetry: () -> Unit) {
 }
 
 // ==================== TRACK ROW ====================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -430,7 +542,10 @@ fun TrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .background(
                 if (isPlaying) UplayerOrange.copy(alpha = 0.1f)
                 else Color.Transparent
