@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -87,7 +86,6 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
         ) {
-            // ===== TOP BAR =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,18 +109,11 @@ fun NowPlayingScreen(
                     letterSpacing = 1.sp
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { }) {
-                    Icon(
-                        Icons.Filled.Share,
-                        contentDescription = "Bagikan",
-                        tint = Color.White
-                    )
-                }
+                Spacer(Modifier.size(48.dp))
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ===== ALBUM ART (BULAT) =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -133,11 +124,7 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .size(280.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Orange, Purple)
-                            )
-                        ),
+                        .background(Brush.linearGradient(listOf(Orange, Purple))),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -151,7 +138,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ===== JUDUL & ARTIS =====
             Text(
                 text = track.title,
                 color = Color.White,
@@ -175,7 +161,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ===== SEEK BAR =====
             Slider(
                 value = if (isDragging == 1f) dragValue else position,
                 onValueChange = { v ->
@@ -199,45 +184,32 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = formatMs(
-                        if (isDragging == 1f) dragValue.toLong() else position.toLong()
-                    ),
-                    color = TextSecondary,
-                    fontSize = 12.sp
+                    text = formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()),
+                    color = TextSecondary, fontSize = 12.sp
                 )
                 Text(
                     text = formatMs(duration),
-                    color = TextSecondary,
-                    fontSize = 12.sp
+                    color = TextSecondary, fontSize = 12.sp
                 )
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // ===== KONTROL UTAMA =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle
                 IconButton(onClick = { playerManager.toggleShuffle() }) {
                     Text(
-                        text = "🔀",
-                        fontSize = 24.sp,
+                        "🔀", fontSize = 24.sp,
                         color = if (playerManager.isShuffleOn) Orange else TextSecondary
                     )
                 }
-
-                // Previous
                 IconButton(
                     onClick = { playerManager.previous() },
                     modifier = Modifier.size(56.dp)
-                ) {
-                    Text("⏮", fontSize = 32.sp, color = Color.White)
-                }
-
-                // Play/Pause besar
+                ) { Text("⏮", fontSize = 32.sp, color = Color.White) }
                 Box(
                     modifier = Modifier
                         .size(72.dp)
@@ -247,24 +219,17 @@ fun NowPlayingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (isPlaying) "⏸" else "▶",
-                        fontSize = 32.sp,
-                        color = Color.White
+                        if (isPlaying) "⏸" else "▶",
+                        fontSize = 32.sp, color = Color.White
                     )
                 }
-
-                // Next
                 IconButton(
                     onClick = { playerManager.next() },
                     modifier = Modifier.size(56.dp)
-                ) {
-                    Text("⏭", fontSize = 32.sp, color = Color.White)
-                }
-
-                // Repeat
+                ) { Text("⏭", fontSize = 32.sp, color = Color.White) }
                 IconButton(onClick = { playerManager.cycleRepeatMode() }) {
                     Text(
-                        text = when (playerManager.repeatMode) {
+                        when (playerManager.repeatMode) {
                             1 -> "🔁"
                             2 -> "🔂"
                             else -> "🔁"
@@ -282,7 +247,5 @@ fun NowPlayingScreen(
 
 private fun formatMs(ms: Long): String {
     val totalSec = ms / 1000
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "%d:%02d".format(min, sec)
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
 }
