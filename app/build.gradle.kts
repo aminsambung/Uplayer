@@ -74,3 +74,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.0")
     ksp("androidx.room:room-compiler:2.6.0")
 }
+dependencies {
+    // ... yang sudah ada ...
+    implementation("net.jthink:jaudiotagger:3.0.1")
+}
