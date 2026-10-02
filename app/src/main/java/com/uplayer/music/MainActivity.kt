@@ -9,7 +9,7 @@ import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,11 +26,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -92,7 +90,10 @@ class MainActivity : ComponentActivity() {
                     surface = UplayerSurface
                 )
             ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = UplayerDarkBg) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = UplayerDarkBg
+                ) {
                     MainScreen()
                 }
             }
@@ -111,7 +112,7 @@ fun MainScreen() {
         containerColor = UplayerDarkBg,
         bottomBar = {
             Column {
-                // Mini player di atas bottom nav
+                // Mini player muncul hanya jika ada track
                 playerManager.currentTrack?.let { track ->
                     MiniPlayer(
                         track = track,
@@ -231,15 +232,24 @@ fun MiniPlayer(
 fun LibraryScreen(playerManager: PlayerManager) {
     val context = LocalContext.current
 
-    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_AUDIO
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
+    // Siapkan daftar permission
+    val permissions = remember {
+        buildList {
+            add(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    Manifest.permission.READ_MEDIA_AUDIO
+                else
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
     }
 
     var hasPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, permission) ==
+            ContextCompat.checkSelfPermission(context, permissions[0]) ==
                     PackageManager.PERMISSION_GRANTED
         )
     }
@@ -248,8 +258,10 @@ fun LibraryScreen(playerManager: PlayerManager) {
     var isLoading by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted -> hasPermission = granted }
+        contract = RequestMultiplePermissions()
+    ) { result ->
+        hasPermission = result[permissions[0]] == true
+    }
 
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
@@ -261,18 +273,23 @@ fun LibraryScreen(playerManager: PlayerManager) {
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold) },
+            title = {
+                Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
         when {
             !hasPermission -> PermissionContent(
-                onGrant = { permissionLauncher.launch(permission) }
+                onGrant = { permissionLauncher.launch(permissions) }
             )
+
             isLoading -> LoadingContent()
+
             tracks.isEmpty() -> EmptyContent(
-                onRetry = { permissionLauncher.launch(permission) }
+                onRetry = { permissionLauncher.launch(permissions) }
             )
+
             else -> {
                 Text(
                     text = "${tracks.size} lagu ditemukan",
@@ -305,7 +322,9 @@ fun LibraryScreen(playerManager: PlayerManager) {
 @Composable
 fun PermissionContent(onGrant: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -349,7 +368,9 @@ fun LoadingContent() {
 @Composable
 fun EmptyContent(onRetry: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -389,7 +410,10 @@ fun TrackRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .background(if (isPlaying) UplayerOrange.copy(alpha = 0.1f) else Color.Transparent)
+            .background(
+                if (isPlaying) UplayerOrange.copy(alpha = 0.1f)
+                else Color.Transparent
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -397,7 +421,10 @@ fun TrackRow(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isPlaying) UplayerOrange.copy(alpha = 0.3f) else UplayerSurface),
+                .background(
+                    if (isPlaying) UplayerOrange.copy(alpha = 0.3f)
+                    else UplayerSurface
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -440,12 +467,21 @@ fun TrackRow(
 fun PlaceholderScreen(name: String, icon: ImageVector) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(name, color = Color.White, fontWeight = FontWeight.Bold) },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
+            title = {
+                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = UplayerDarkBg
+            )
         )
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, null, tint = UplayerOrange, modifier = Modifier.size(72.dp))
+                Icon(
+                    icon,
+                    null,
+                    tint = UplayerOrange,
+                    modifier = Modifier.size(72.dp)
+                )
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "$name — Coming soon",
@@ -490,7 +526,8 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val uri = ContentUris.withAppendedId(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    id
                 ).toString()
 
                 result.add(
