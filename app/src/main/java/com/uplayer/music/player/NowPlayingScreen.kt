@@ -35,10 +35,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
@@ -48,11 +50,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.uplayer.music.data.preferences.WallpaperConfig
+import com.uplayer.music.data.preferences.WallpaperPreferences
 import kotlinx.coroutines.delay
 
 // ==================== COLORS ====================
@@ -69,8 +74,17 @@ fun NowPlayingScreen(
     playerManager: PlayerManager,
     onClose: () -> Unit
 ) {
+    val context = LocalContext.current
     val track = playerManager.currentTrack ?: return
     val isPlaying = playerManager.isPlaying
+
+    // ===== WALLPAPER CONFIG =====
+    var wallpaperConfig by remember { mutableStateOf(WallpaperConfig()) }
+    LaunchedEffect(Unit) {
+        WallpaperPreferences.observe(context).collect { cfg ->
+            wallpaperConfig = cfg
+        }
+    }
 
     // ===== PROGRESS STATE =====
     var position by remember { mutableFloatStateOf(0f) }
@@ -89,7 +103,6 @@ fun NowPlayingScreen(
         ),
         label = "rotation"
     )
-    // Hanya berputar saat isPlaying
     val currentRotation = if (isPlaying) rotation else 0f
 
     // ===== UPDATE POSITION SETIAP 500ms =====
@@ -103,11 +116,16 @@ fun NowPlayingScreen(
         }
     }
 
+    // ===== ROOT BOX =====
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
     ) {
+        // ===== WALLPAPER LAYER =====
+        WallpaperBackground(config = wallpaperConfig)
+
+        // ===== CONTENT =====
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -149,7 +167,7 @@ fun NowPlayingScreen(
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                // Progress ring (di belakang)
+                // Progress ring
                 ProgressRing(
                     progress = if (duration > 0)
                         (position / duration).coerceIn(0f, 1f)
@@ -200,7 +218,7 @@ fun NowPlayingScreen(
                 )
             }
 
-            // ========== SLIDER (invisible, untuk drag) ==========
+            // ========== SLIDER (transparent, untuk drag) ==========
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -227,7 +245,7 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // ========== PILL CONTROLS (Speed / Favorite / Volume) ==========
+            // ========== PILL CONTROLS ==========
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -285,17 +303,14 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle
                 IconButton(onClick = { playerManager.toggleShuffle() }) {
                     Text(
                         text = "🔀",
                         fontSize = 24.sp,
-                        color = if (playerManager.isShuffleOn) Orange
-                                else TextSecondary
+                        color = if (playerManager.isShuffleOn) Orange else TextSecondary
                     )
                 }
 
-                // Previous
                 IconButton(
                     onClick = { playerManager.previous() },
                     modifier = Modifier.size(56.dp)
@@ -303,7 +318,6 @@ fun NowPlayingScreen(
                     Text("⏮", fontSize = 32.sp, color = Color.White)
                 }
 
-                // Play/Pause
                 Box(
                     modifier = Modifier
                         .size(72.dp)
@@ -321,7 +335,6 @@ fun NowPlayingScreen(
                     )
                 }
 
-                // Next
                 IconButton(
                     onClick = { playerManager.next() },
                     modifier = Modifier.size(56.dp)
@@ -329,7 +342,6 @@ fun NowPlayingScreen(
                     Text("⏭", fontSize = 32.sp, color = Color.White)
                 }
 
-                // Repeat
                 IconButton(onClick = { playerManager.cycleRepeatMode() }) {
                     Text(
                         text = when (playerManager.repeatMode) {
@@ -338,8 +350,7 @@ fun NowPlayingScreen(
                             else -> "🔁"
                         },
                         fontSize = 24.sp,
-                        color = if (playerManager.repeatMode > 0) Orange
-                                else TextSecondary
+                        color = if (playerManager.repeatMode > 0) Orange else TextSecondary
                     )
                 }
             }
@@ -350,6 +361,94 @@ fun NowPlayingScreen(
             SleepTimerStrip()
 
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+// ==================== WALLPAPER BACKGROUND ====================
+@Composable
+private fun WallpaperBackground(config: WallpaperConfig) {
+    Box(Modifier.fillMaxSize()) {
+        when (config.type) {
+            "solid" -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color(config.colorStart))
+                )
+            }
+            "gradient" -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(config.colorStart),
+                                    Color(config.colorEnd)
+                                )
+                            )
+                        )
+                )
+            }
+            "gallery" -> {
+                if (config.imageUri.isNotBlank()) {
+                    Box(Modifier.fillMaxSize()) {
+                        AsyncImage(
+                            model = config.imageUri,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    if (android.os.Build.VERSION.SDK_INT >= 31
+                                        && config.blurRadius > 0f
+                                    ) {
+                                        Modifier.blur(config.blurRadius.dp)
+                                    } else Modifier
+                                )
+                        )
+                    }
+                } else {
+                    // fallback kalau belum pilih gambar
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF8A2BE2).copy(alpha = 0.6f),
+                                        DarkBg
+                                    )
+                                )
+                            )
+                    )
+                }
+            }
+            // "album_blur" dan default
+            else -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF8A2BE2).copy(alpha = 0.6f),
+                                    DarkBg
+                                )
+                            )
+                        )
+                )
+            }
+        }
+
+        // Overlay gelap untuk readability
+        if (config.darkOverlay > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = config.darkOverlay))
+            )
         }
     }
 }
@@ -370,9 +469,9 @@ private fun ProgressRing(
         )
         val topLeft = Offset(inset, inset)
 
-        // Background circle (grey)
+        // Background circle
         drawArc(
-            color = Color(0xFF2A2A2A),
+            color = Color(0xFF2A2A2A).copy(alpha = 0.7f),
             startAngle = -90f,
             sweepAngle = 360f,
             useCenter = false,
@@ -381,11 +480,9 @@ private fun ProgressRing(
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         )
 
-        // Progress arc (orange gradient)
+        // Progress arc
         drawArc(
-            brush = Brush.sweepGradient(
-                listOf(Orange, OrangeSoft, Orange)
-            ),
+            brush = Brush.sweepGradient(listOf(Orange, OrangeSoft, Orange)),
             startAngle = -90f,
             sweepAngle = 360f * progress.coerceIn(0f, 1f),
             useCenter = false,
@@ -394,7 +491,7 @@ private fun ProgressRing(
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         )
 
-        // Dot at the end of progress arc
+        // Dot di ujung progress
         val angleRad = Math.toRadians(
             (-90f + 360f * progress.coerceIn(0f, 1f)).toDouble()
         )
