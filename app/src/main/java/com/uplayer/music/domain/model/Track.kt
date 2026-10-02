@@ -6,6 +6,7 @@ data class Track(
     val artist: String,
     val album: String,
     val durationMs: Long,
+    val uri: String = "",
     val isFavorite: Boolean = false
 )
 
