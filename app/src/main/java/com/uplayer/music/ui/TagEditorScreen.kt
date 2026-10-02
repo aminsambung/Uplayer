@@ -51,4 +51,114 @@ fun TagEditorScreen(
             artist = tags.artist ?: ""
             album = tags.album ?: ""
             genre = tags.genre ?: ""
-            year
+            year = tags.year ?: ""
+        }
+        isLoading = false
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onClose) {
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        "Tutup",
+                        tint = Color.White
+                    )
+                }
+                Text(
+                    "Edit Info Lagu",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            if (isLoading) {
+                CircularProgressIndicator(color = Orange)
+            } else {
+                TagField("Judul", title) { title = it }
+                TagField("Artis", artist) { artist = it }
+                TagField("Album", album) { album = it }
+                TagField("Genre", genre) { genre = it }
+                TagField("Tahun", year) { year = it }
+
+                Spacer(Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSaving = true
+                            val result = withContext(Dispatchers.IO) {
+                                TagEditor.writeTags(
+                                    filePath = filePath,
+                                    title = title.ifBlank { null },
+                                    artist = artist.ifBlank { null },
+                                    album = album.ifBlank { null },
+                                    genre = genre.ifBlank { null },
+                                    year = year.ifBlank { null }
+                                )
+                            }
+                            isSaving = false
+                            result.onSuccess {
+                                message = "✓ Berhasil disimpan"
+                                onSaved()
+                            }.onFailure {
+                                message = "✗ ${it.message}"
+                            }
+                        }
+                    },
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        if (isSaving) "Menyimpan..." else "Simpan Perubahan",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                message?.let {
+                    Spacer(Modifier.height(16.dp))
+                    Text(it, color = TextSecondary, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit
+) {
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text(label, color = TextSecondary, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Orange,
+                unfocusedBorderColor = Surface2,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            singleLine = true
+        )
+    }
+}
