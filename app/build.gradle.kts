@@ -60,6 +60,12 @@ dependencies {
     
     // Guava
     implementation("com.google.guava:guava:32.1.3-android")
+    
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // Palette (untuk extract warna dari album art)
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // Room
     implementation("androidx.room:room-runtime:2.6.0")
