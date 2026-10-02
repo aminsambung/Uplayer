@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.uplayer.music.domain.model.Track
 import com.uplayer.music.domain.model.formattedDuration
+import com.uplayer.music.player.NowPlayingScreen
 import com.uplayer.music.player.PlayerManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -107,18 +108,29 @@ fun MainScreen() {
     val context = LocalContext.current
     val playerManager = remember { PlayerManager.getInstance(context) }
     var selectedTab by remember { mutableStateOf(0) }
+    var showNowPlaying by remember { mutableStateOf(false) }
+
+    // ====== NOW PLAYING FULL SCREEN OVERLAY ======
+    if (showNowPlaying) {
+        NowPlayingScreen(
+            playerManager = playerManager,
+            onClose = { showNowPlaying = false }
+        )
+        return
+    }
 
     Scaffold(
         containerColor = UplayerDarkBg,
         bottomBar = {
             Column {
-                // Mini player muncul hanya jika ada track
+                // Mini player muncul kalau ada track
                 playerManager.currentTrack?.let { track ->
                     MiniPlayer(
                         track = track,
                         isPlaying = playerManager.isPlaying,
                         onPlayPause = { playerManager.togglePlayPause() },
-                        onNext = { playerManager.next() }
+                        onNext = { playerManager.next() },
+                        onExpand = { showNowPlaying = true }
                     )
                 }
                 NavigationBar(
@@ -175,12 +187,14 @@ fun MiniPlayer(
     track: Track,
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onExpand: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(UplayerSurface)
+            .clickable { onExpand() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -232,7 +246,7 @@ fun MiniPlayer(
 fun LibraryScreen(playerManager: PlayerManager) {
     val context = LocalContext.current
 
-    // Siapkan daftar permission
+    // Siapkan permission list
     val permissions = remember {
         buildList {
             add(
@@ -276,7 +290,9 @@ fun LibraryScreen(playerManager: PlayerManager) {
             title = {
                 Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = UplayerDarkBg
+            )
         )
 
         when {
