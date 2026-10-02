@@ -30,11 +30,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,11 +53,14 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -76,12 +85,15 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.uplayer.music.data.local.FavoriteRepository
+import com.uplayer.music.data.local.PlaylistRepository
+import com.uplayer.music.data.local.entity.PlaylistEntity
 import com.uplayer.music.domain.model.Track
 import com.uplayer.music.domain.model.formattedDuration
 import com.uplayer.music.player.AlbumArtHelper
 import com.uplayer.music.player.NowPlayingScreen
 import com.uplayer.music.player.PlayerManager
 import com.uplayer.music.ui.EqualizerScreen
+import com.uplayer.music.ui.PlaylistDetailScreen
 import com.uplayer.music.ui.TagEditorScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -125,8 +137,22 @@ fun MainScreen() {
     var showNowPlaying by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
 
-    // Tag Editor overlay
+    // Playlist Detail overlay
+    selectedPlaylist?.let { (id, name) ->
+        PlaylistDetailScreen(
+            playlistId = id,
+            playlistName = name,
+            allTracks = allTracks,
+            playerManager = playerManager,
+            onBack = { selectedPlaylist = null }
+        )
+        return
+    }
+
+    // Tag Editor
     tagEditPath?.let { path ->
         TagEditorScreen(
             filePath = path,
@@ -136,11 +162,9 @@ fun MainScreen() {
         return
     }
 
-    // Equalizer overlay
+    // Equalizer
     if (showEqualizer) {
-        LaunchedEffect(Unit) {
-            playerManager.refreshAudioSessionId()
-        }
+        LaunchedEffect(Unit) { playerManager.refreshAudioSessionId() }
         EqualizerScreen(
             audioSessionId = playerManager.audioSessionId,
             onClose = { showEqualizer = false }
@@ -148,7 +172,7 @@ fun MainScreen() {
         return
     }
 
-    // Now Playing overlay
+    // Now Playing
     if (showNowPlaying) {
         NowPlayingScreen(
             playerManager = playerManager,
@@ -203,12 +227,14 @@ fun MainScreen() {
             when (selectedTab) {
                 0 -> LibraryScreen(
                     playerManager = playerManager,
-                    onEditTag = { path -> tagEditPath = path }
+                    onEditTag = { path -> tagEditPath = path },
+                    onTracksLoaded = { tracks -> allTracks = tracks },
+                    onPlaylistClick = { id, name ->
+                        selectedPlaylist = id to name
+                    }
                 )
                 1 -> PlaceholderScreen("Search", Icons.Filled.Search)
-                2 -> SettingsScreen(
-                    onOpenEqualizer = { showEqualizer = true }
-                )
+                2 -> SettingsScreen(onOpenEqualizer = { showEqualizer = true })
             }
         }
     }
@@ -265,10 +291,7 @@ fun MiniPlayer(
             )
         }
         IconButton(onClick = onPlayPause) {
-            Text(
-                if (isPlaying) "⏸" else "▶",
-                fontSize = 22.sp, color = UplayerOrange
-            )
+            Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp, color = UplayerOrange)
         }
         IconButton(onClick = onNext) {
             Text("⏭", fontSize = 20.sp, color = Color.White)
@@ -281,7 +304,9 @@ fun MiniPlayer(
 @Composable
 fun LibraryScreen(
     playerManager: PlayerManager,
-    onEditTag: (String) -> Unit
+    onEditTag: (String) -> Unit,
+    onTracksLoaded: (List<Track>) -> Unit,
+    onPlaylistClick: (Long, String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -308,27 +333,35 @@ fun LibraryScreen(
     }
     var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var favoriteIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var playlists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) } // 0 = All, 1 = Favorites
+    var selectedTab by remember { mutableStateOf(0) } // 0=All, 1=Fav, 2=Playlist
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
     ) { result -> hasPermission = result[permissions[0]] == true }
 
-    // Load tracks
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             isLoading = true
             allTracks = loadTracksFromDevice(context)
+            onTracksLoaded(allTracks)
             isLoading = false
         }
     }
 
-    // Observe favorites
     LaunchedEffect(Unit) {
         FavoriteRepository.observeFavoriteIds(context).collectLatest { ids ->
             favoriteIds = ids.toSet()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        PlaylistRepository.observePlaylists(context).collectLatest { list ->
+            playlists = list
         }
     }
 
@@ -343,11 +376,17 @@ fun LibraryScreen(
             title = {
                 Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
             },
+            actions = {
+                if (selectedTab == 2) {
+                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
+                        Icon(Icons.Filled.Add, "Buat Playlist", tint = UplayerOrange)
+                    }
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
-            // Tab: Semua / Favorit
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = UplayerDarkBg,
@@ -358,8 +397,10 @@ fun LibraryScreen(
                     onClick = { selectedTab = 0 },
                     text = {
                         Text(
-                            "Semua (${allTracks.size})",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                            "Semua",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold
+                                         else FontWeight.Normal,
+                            fontSize = 13.sp
                         )
                     }
                 )
@@ -368,8 +409,22 @@ fun LibraryScreen(
                     onClick = { selectedTab = 1 },
                     text = {
                         Text(
-                            "❤️ Favorit (${favoriteIds.size})",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                            "❤️ ${favoriteIds.size}",
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold
+                                         else FontWeight.Normal,
+                            fontSize = 13.sp
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = {
+                        Text(
+                            "📝 ${playlists.size}",
+                            fontWeight = if (selectedTab == 2) FontWeight.Bold
+                                         else FontWeight.Normal,
+                            fontSize = 13.sp
                         )
                     }
                 )
@@ -384,26 +439,23 @@ fun LibraryScreen(
             allTracks.isEmpty() -> EmptyContent(
                 onRetry = { permissionLauncher.launch(permissions) }
             )
+            selectedTab == 2 -> {
+                // Playlist list
+                PlaylistList(
+                    playlists = playlists,
+                    onClick = { playlist ->
+                        onPlaylistClick(playlist.id, playlist.name)
+                    },
+                    onDelete = { playlist ->
+                        scope.launch {
+                            PlaylistRepository.deletePlaylist(context, playlist.id)
+                        }
+                    },
+                    onCreateClick = { showCreatePlaylistDialog = true }
+                )
+            }
             displayedTracks.isEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("❤️", fontSize = 64.sp)
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Belum ada favorit",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Tap ikon hati di lagu untuk menambahkan",
-                            color = UplayerTextSecondary,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                EmptyFavoritesContent()
             }
             else -> {
                 LazyColumn(
@@ -442,9 +494,7 @@ fun LibraryScreen(
                 isFavorite = track.id in favoriteIds,
                 onDismiss = { selectedTrackForAction = null },
                 onEditTag = {
-                    if (track.filePath.isNotBlank()) {
-                        onEditTag(track.filePath)
-                    }
+                    if (track.filePath.isNotBlank()) onEditTag(track.filePath)
                     selectedTrackForAction = null
                 },
                 onPlay = {
@@ -456,13 +506,147 @@ fun LibraryScreen(
                         FavoriteRepository.toggleFavorite(context, track.id)
                     }
                     selectedTrackForAction = null
+                },
+                onAddToPlaylist = {
+                    showAddToPlaylistSheet = true
                 }
             )
         }
     }
+
+    // Add to playlist sheet
+    if (showAddToPlaylistSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showAddToPlaylistSheet = false
+                selectedTrackForAction = null
+            },
+            containerColor = UplayerSurface
+        ) {
+            AddToPlaylistSheet(
+                playlists = playlists,
+                onSelect = { playlist ->
+                    val track = selectedTrackForAction
+                    if (track != null) {
+                        scope.launch {
+                            val pos = playlist.id.let { pid ->
+                                // Posisi sederhana: jumlah track + 1
+                                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                    PlaylistRepository
+                                        .observePlaylistTracks(context, pid)
+                                }
+                            }
+                            PlaylistRepository.addTrackToPlaylist(
+                                context,
+                                playlist.id,
+                                track.id,
+                                position = (System.currentTimeMillis() / 1000).toInt()
+                            )
+                        }
+                    }
+                    showAddToPlaylistSheet = false
+                    selectedTrackForAction = null
+                },
+                onCreateNew = {
+                    showAddToPlaylistSheet = false
+                    showCreatePlaylistDialog = true
+                }
+            )
+        }
+    }
+
+    // Create playlist dialog
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreatePlaylistDialog = false },
+            onCreate = { name ->
+                scope.launch {
+                    PlaylistRepository.createPlaylist(context, name)
+                }
+                showCreatePlaylistDialog = false
+            }
+        )
+    }
 }
 
-// ==================== BOTTOM SHEET ====================
+// ==================== PLAYLIST LIST ====================
+@Composable
+fun PlaylistList(
+    playlists: List<PlaylistEntity>,
+    onClick: (PlaylistEntity) -> Unit,
+    onDelete: (PlaylistEntity) -> Unit,
+    onCreateClick: () -> Unit
+) {
+    if (playlists.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("📝", fontSize = 64.sp)
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Belum ada playlist",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onCreateClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)
+                ) {
+                    Icon(Icons.Filled.Add, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Buat Playlist")
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(playlists, key = { it.id }) { playlist ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onClick(playlist) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(UplayerSurface2),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.QueueMusic,
+                            null,
+                            tint = UplayerOrange
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        playlist.name,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onDelete(playlist) }) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            "Hapus playlist",
+                            tint = UplayerTextSecondary
+                        )
+                    }
+                }
+                Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
+            }
+        }
+    }
+}
+
+// ==================== BOTTOM SHEETS ====================
 @Composable
 fun TrackActionSheet(
     track: Track,
@@ -470,7 +654,8 @@ fun TrackActionSheet(
     onDismiss: () -> Unit,
     onEditTag: () -> Unit,
     onPlay: () -> Unit,
-    onFavoriteToggle: () -> Unit
+    onFavoriteToggle: () -> Unit,
+    onAddToPlaylist: () -> Unit
 ) {
     Column(
         Modifier
@@ -513,17 +698,52 @@ fun TrackActionSheet(
                 )
             }
         }
-
         Divider(color = UplayerSurface2)
-
         SheetAction("▶", "Putar Sekarang", onPlay)
         SheetAction(
             if (isFavorite) "💔" else "❤️",
             if (isFavorite) "Hapus dari Favorit" else "Tambah ke Favorit",
             onFavoriteToggle
         )
+        SheetAction("➕", "Tambah ke Playlist", onAddToPlaylist)
         SheetAction("✏️", "Edit Info Lagu", onEditTag)
-        SheetAction("ℹ️", "Info File", onDismiss)
+    }
+}
+
+@Composable
+fun AddToPlaylistSheet(
+    playlists: List<PlaylistEntity>,
+    onSelect: (PlaylistEntity) -> Unit,
+    onCreateNew: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    ) {
+        Text(
+            "Tambah ke Playlist",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+        )
+        Divider(color = UplayerSurface2)
+
+        SheetAction("➕", "Buat Playlist Baru", onCreateNew)
+
+        if (playlists.isEmpty()) {
+            Text(
+                "Belum ada playlist",
+                color = UplayerTextSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+            )
+        } else {
+            playlists.forEach { playlist ->
+                SheetAction("📝", playlist.name) { onSelect(playlist) }
+            }
+        }
     }
 }
 
@@ -549,6 +769,54 @@ private fun SheetAction(
             fontWeight = FontWeight.Medium
         )
     }
+}
+
+// ==================== DIALOGS ====================
+@Composable
+fun CreatePlaylistDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = UplayerSurface,
+        title = {
+            Text("Buat Playlist Baru", color = Color.White)
+        },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nama Playlist") },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = UplayerOrange,
+                    unfocusedBorderColor = UplayerSurface2,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedLabelColor = UplayerOrange,
+                    unfocusedLabelColor = UplayerTextSecondary
+                )
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank()) onCreate(name.trim())
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Buat", color = UplayerOrange, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal", color = UplayerTextSecondary)
+            }
+        }
+    )
 }
 
 // ==================== CONTENT STATES ====================
@@ -609,6 +877,30 @@ fun EmptyContent(onRetry: () -> Unit) {
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)
         ) { Text("Scan Ulang") }
+    }
+}
+
+@Composable
+fun EmptyFavoritesContent() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("❤️", fontSize = 64.sp)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Belum ada favorit",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Tap ikon hati di lagu untuk menambahkan",
+                color = UplayerTextSecondary,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+        }
     }
 }
 
@@ -673,12 +965,11 @@ fun TrackRow(
             )
         }
 
-        // Favorite button
         IconButton(onClick = onFavoriteToggle) {
             Icon(
                 imageVector = if (isFavorite) Icons.Filled.Favorite
                               else Icons.Filled.FavoriteBorder,
-                contentDescription = if (isFavorite) "Hapus favorit" else "Tambah favorit",
+                contentDescription = null,
                 tint = if (isFavorite) UplayerRed else UplayerTextSecondary
             )
         }
