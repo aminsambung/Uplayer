@@ -23,7 +23,6 @@
             </intent-filter>
         </activity>
 
-        <!-- BARU: Service untuk background playback -->
         <service
             android:name=".player.PlaybackService"
             android:exported="true"
