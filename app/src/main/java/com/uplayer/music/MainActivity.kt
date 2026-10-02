@@ -26,9 +26,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -37,6 +39,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -66,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.uplayer.music.domain.model.Track
 import com.uplayer.music.domain.model.formattedDuration
+import com.uplayer.music.player.PlayerManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -73,6 +77,7 @@ import kotlinx.coroutines.withContext
 val UplayerOrange = Color(0xFFFF6B00)
 val UplayerDarkBg = Color(0xFF0F0F0F)
 val UplayerSurface = Color(0xFF1E1E1E)
+val UplayerSurface2 = Color(0xFF2C2C2C)
 val UplayerTextSecondary = Color(0xFFB0B0B0)
 
 // ==================== ACTIVITY ====================
@@ -98,39 +103,55 @@ class MainActivity : ComponentActivity() {
 // ==================== MAIN SCREEN ====================
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
+    val playerManager = remember { PlayerManager.getInstance(context) }
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
         containerColor = UplayerDarkBg,
         bottomBar = {
-            NavigationBar(containerColor = UplayerSurface, contentColor = Color.White) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Home, null) },
-                    label = { Text("Library") },
-                    colors = navItemColors()
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.Search, null) },
-                    label = { Text("Search") },
-                    colors = navItemColors()
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Filled.Settings, null) },
-                    label = { Text("Settings") },
-                    colors = navItemColors()
-                )
+            Column {
+                // Mini player di atas bottom nav
+                playerManager.currentTrack?.let { track ->
+                    MiniPlayer(
+                        track = track,
+                        isPlaying = playerManager.isPlaying,
+                        onPlayPause = { playerManager.togglePlayPause() },
+                        onNext = { playerManager.next() }
+                    )
+                }
+                NavigationBar(
+                    containerColor = UplayerSurface,
+                    contentColor = Color.White
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Filled.Home, null) },
+                        label = { Text("Library") },
+                        colors = navItemColors()
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.Filled.Search, null) },
+                        label = { Text("Search") },
+                        colors = navItemColors()
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Filled.Settings, null) },
+                        label = { Text("Settings") },
+                        colors = navItemColors()
+                    )
+                }
             }
         }
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> LibraryScreen()
+                0 -> LibraryScreen(playerManager)
                 1 -> PlaceholderScreen("Search", Icons.Filled.Search)
                 2 -> PlaceholderScreen("Settings", Icons.Filled.Settings)
             }
@@ -147,20 +168,75 @@ private fun navItemColors() = NavigationBarItemDefaults.colors(
     unselectedTextColor = UplayerTextSecondary
 )
 
+// ==================== MINI PLAYER ====================
+@Composable
+fun MiniPlayer(
+    track: Track,
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(UplayerSurface)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(UplayerSurface2),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("🎵", fontSize = 18.sp)
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                color = Color.White,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                maxLines = 1
+            )
+            Text(
+                text = track.artist,
+                color = UplayerTextSecondary,
+                fontSize = 11.sp,
+                maxLines = 1
+            )
+        }
+
+        IconButton(onClick = onPlayPause) {
+            Text(
+                text = if (isPlaying) "⏸" else "▶",
+                fontSize = 22.sp,
+                color = UplayerOrange
+            )
+        }
+
+        IconButton(onClick = onNext) {
+            Text("⏭", fontSize = 20.sp, color = Color.White)
+        }
+    }
+}
+
 // ==================== LIBRARY SCREEN ====================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen() {
+fun LibraryScreen(playerManager: PlayerManager) {
     val context = LocalContext.current
 
-    // Pilih permission sesuai versi Android
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_AUDIO
     } else {
         Manifest.permission.READ_EXTERNAL_STORAGE
     }
 
-    // Cek apakah sudah punya izin
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, permission) ==
@@ -171,14 +247,10 @@ fun LibraryScreen() {
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // Launcher untuk minta izin
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasPermission = granted
-    }
+    ) { granted -> hasPermission = granted }
 
-    // Load lagu kalau sudah punya izin
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             isLoading = true
@@ -189,9 +261,7 @@ fun LibraryScreen() {
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = {
-                Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
-            },
+            title = { Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
@@ -199,16 +269,10 @@ fun LibraryScreen() {
             !hasPermission -> PermissionContent(
                 onGrant = { permissionLauncher.launch(permission) }
             )
-
             isLoading -> LoadingContent()
-
             tracks.isEmpty() -> EmptyContent(
-                onRetry = {
-                    // Retry: minta izin ulang atau scan ulang
-                    permissionLauncher.launch(permission)
-                }
+                onRetry = { permissionLauncher.launch(permission) }
             )
-
             else -> {
                 Text(
                     text = "${tracks.size} lagu ditemukan",
@@ -221,7 +285,14 @@ fun LibraryScreen() {
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(tracks, key = { it.id }) { track ->
-                        TrackRow(track)
+                        TrackRow(
+                            track = track,
+                            isPlaying = playerManager.currentTrack?.id == track.id
+                                    && playerManager.isPlaying,
+                            onClick = {
+                                playerManager.playTrack(track, tracks)
+                            }
+                        )
                         Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
                     }
                 }
@@ -256,10 +327,7 @@ fun PermissionContent(onGrant: () -> Unit) {
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = onGrant,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = UplayerOrange,
-                contentColor = Color.White
-            ),
+            colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text("Izinkan Akses Musik", fontWeight = FontWeight.Bold)
@@ -312,11 +380,16 @@ fun EmptyContent(onRetry: () -> Unit) {
 
 // ==================== TRACK ROW ====================
 @Composable
-fun TrackRow(track: Track) {
+fun TrackRow(
+    track: Track,
+    isPlaying: Boolean = false,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO: play - tahap 3 */ }
+            .clickable { onClick() }
+            .background(if (isPlaying) UplayerOrange.copy(alpha = 0.1f) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -324,10 +397,14 @@ fun TrackRow(track: Track) {
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(UplayerSurface),
+                .background(if (isPlaying) UplayerOrange.copy(alpha = 0.3f) else UplayerSurface),
             contentAlignment = Alignment.Center
         ) {
-            Text("🎵", fontSize = 20.sp)
+            Text(
+                text = if (isPlaying) "⏸" else "🎵",
+                fontSize = 20.sp,
+                color = if (isPlaying) UplayerOrange else Color.Unspecified
+            )
         }
 
         Spacer(Modifier.width(12.dp))
@@ -335,7 +412,7 @@ fun TrackRow(track: Track) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = track.title,
-                color = Color.White,
+                color = if (isPlaying) UplayerOrange else Color.White,
                 fontWeight = FontWeight.Medium,
                 fontSize = 15.sp,
                 maxLines = 1
@@ -412,6 +489,10 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
+                val uri = ContentUris.withAppendedId(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
+                ).toString()
+
                 result.add(
                     Track(
                         id = id,
@@ -422,7 +503,8 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
                         album = cursor.getString(albumCol)
                             ?.takeIf { it.isNotBlank() && it != "<unknown>" }
                             ?: "Unknown Album",
-                        durationMs = cursor.getLong(durationCol)
+                        durationMs = cursor.getLong(durationCol),
+                        uri = uri
                     )
                 )
             }
