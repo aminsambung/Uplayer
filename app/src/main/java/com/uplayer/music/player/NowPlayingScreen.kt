@@ -1,5 +1,12 @@
 package com.uplayer.music.player
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,56 +35,65 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.uplayer.music.data.preferences.WallpaperConfig
-import com.uplayer.music.data.preferences.WallpaperPreferences
 import kotlinx.coroutines.delay
+import kotlin.math.sin
 
-// ==================== COLORS ====================
-private val Orange = Color(0xFFFF6B00)
-private val OrangeSoft = Color(0xFFFF8A3D)
-private val DarkBg = Color(0xFF0F0F0F)
-private val Surface2 = Color(0xFF2C2C2C)
-private val TextSecondary = Color(0xFFB0B0B0)
+// ==================== COLORS (LIGHT THEME) ====================
+private val LightBg = Color(0xFFF4F6FA)
+private val NeonPurple = Color(0xFFB44CF6)
+private val NeonPink = Color(0xFFFF4DA6)
+private val NeonCyan = Color(0xFF00E5FF)
+private val DarkText = Color(0xFF1E1E24)
+private val SubText = Color(0xFF6E6E80)
 
-// ==================== SCREEN ====================
 @Composable
 fun NowPlayingScreen(
     playerManager: PlayerManager,
     onClose: () -> Unit
 ) {
-    val context = LocalContext.current
     val track = playerManager.currentTrack ?: return
     val isPlaying = playerManager.isPlaying
 
-    // ===== WALLPAPER =====
-    var wallpaperConfig by remember { mutableStateOf(WallpaperConfig()) }
-    LaunchedEffect(Unit) {
-        WallpaperPreferences.observe(context).collect { cfg ->
-            wallpaperConfig = cfg
-        }
-    }
-
-    // ===== PROGRESS =====
+    // ===== PROGRESS STATE =====
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(playerManager.duration()) }
     var isDragging by remember { mutableFloatStateOf(0f) }
     var dragValue by remember { mutableFloatStateOf(0f) }
 
+    // ===== ROTATION ANIMATION =====
+    val infiniteTransition = rememberInfiniteTransition(label = "vinyl")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 10_000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    val currentRotation = if (isPlaying) rotation else 0f
+
+    // ===== UPDATE POSITION =====
     LaunchedEffect(track.id, isPlaying) {
         while (true) {
             if (isDragging == 0f) {
@@ -87,16 +104,12 @@ fun NowPlayingScreen(
         }
     }
 
-    // ===== ROOT =====
+    // ===== ROOT (BACKGROUND PUTIH) =====
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(LightBg)
     ) {
-        // Wallpaper layer
-        WallpaperBackground(config = wallpaperConfig)
-
-        // Konten
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -106,32 +119,97 @@ fun NowPlayingScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(top = 24.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onClose) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowDown,
-                        contentDescription = "Tutup",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                // Tombol Power/Close
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE0E5EC))
+                        .clickable { onClose() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⏻", fontSize = 16.sp, color = DarkText)
+                }
+
+                // Judul lagu di tengah (kecil)
+                Text(
+                    text = track.title,
+                    color = DarkText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp).weight(1f),
+                    textAlign = TextAlign.Center
+                )
+
+                // Tombol Menu
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE0E5EC)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("≡", fontSize = 20.sp, color = DarkText, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // ========== HEADER: ALBUM ART KECIL + INFO LAGU ==========
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            // ========== VINYL DISK + GLOW ==========
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
             ) {
-                // Album art kecil (kiri)
+                // 1. Glow Background
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Surface2)
+                        .fillMaxSize()
+                        .drawBehind {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        NeonPurple.copy(alpha = 0.3f),
+                                        NeonCyan.copy(alpha = 0.1f),
+                                        Color.Transparent
+                                    ),
+                                    center = center,
+                                    radius = size.minDimension / 1.5f
+                                )
+                            )
+                        }
+                )
+
+                // 2. Vinyl Hitam
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(0.85f)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0A0A14))
+                        // Ring neon
+                        .drawBehind {
+                            drawCircle(
+                                color = NeonPurple,
+                                radius = size.minDimension / 2 - 2.dp.toPx(),
+                                style = Stroke(width = 3.dp.toPx())
+                            )
+                        }
+                )
+
+                // 3. Album Art (berputar)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(0.65f)
+                        .rotate(currentRotation)
+                        .clip(CircleShape)
+                        .background(Color.DarkGray)
                 ) {
                     AsyncImage(
                         model = AlbumArtHelper.getAlbumArtUri(track.albumId),
@@ -141,41 +219,51 @@ fun NowPlayingScreen(
                     )
                 }
 
-                Spacer(Modifier.width(16.dp))
+                // 4. Center Hole (Lubang Tengah)
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE8EAF6))
+                        .drawBehind {
+                            // Neon border
+                            drawCircle(
+                                color = NeonPink,
+                                radius = size.minDimension / 2 - 2.dp.toPx(),
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Tombol Play/Pause di tengah
+                    Text(
+                        text = if (isPlaying) "⏸" else "▶",
+                        fontSize = 24.sp,
+                        color = NeonPurple,
+                        modifier = Modifier.clickable { playerManager.togglePlayPause() }
+                    )
+                }
 
-                // Info lagu (kanan)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = track.title,
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = track.artist,
-                        color = TextSecondary,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = track.album,
-                        color = TextSecondary.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                // 5. Equalizer Bars (di bawah vinyl)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f)
+                        .height(40.dp)
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    for (i in 0..15) {
+                        EqualizerBar(index = i, isPlaying = isPlaying)
+                    }
                 }
             }
 
             Spacer(Modifier.weight(1f))
 
-            // ========== SLIDER + TIME ==========
-            Column(Modifier.fillMaxWidth()) {
+            // ========== SLIDER & WAKTU ==========
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Slider(
                     value = if (isDragging == 1f) dragValue else position,
                     onValueChange = { v ->
@@ -188,9 +276,9 @@ fun NowPlayingScreen(
                     },
                     valueRange = 0f..(duration.coerceAtLeast(1).toFloat()),
                     colors = SliderDefaults.colors(
-                        thumbColor = Orange,
-                        activeTrackColor = Orange,
-                        inactiveTrackColor = Surface2
+                        thumbColor = DarkText,
+                        activeTrackColor = DarkText,
+                        inactiveTrackColor = Color(0xFFCBD0D8)
                     )
                 )
 
@@ -199,86 +287,97 @@ fun NowPlayingScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = formatMs(
-                            if (isDragging == 1f) dragValue.toLong()
-                            else position.toLong()
-                        ),
-                        color = TextSecondary,
+                        text = formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()),
+                        color = DarkText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Next", // Sesuai desain
+                        color = SubText,
                         fontSize = 12.sp
                     )
                     Text(
                         text = formatMs(duration),
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        color = DarkText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ========== MAIN CONTROLS ==========
+            // ========== KONTROL UTAMA ==========
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .padding(bottom = 40.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle
-                IconButton(onClick = { playerManager.toggleShuffle() }) {
+                // Tombol kiri: Repeat
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE0E5EC))
+                        .clickable { playerManager.cycleRepeatMode() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = "🔀",
-                        fontSize = 24.sp,
-                        color = if (playerManager.isShuffleOn) Orange
-                                else TextSecondary
+                        "🔁",
+                        fontSize = 18.sp,
+                        color = if (playerManager.repeatMode > 0) NeonPurple else DarkText
                     )
                 }
 
-                // Previous
-                IconButton(
-                    onClick = { playerManager.previous() },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Text("⏮", fontSize = 32.sp, color = Color.White)
+                // Tombol Prev
+                IconButton(onClick = { playerManager.previous() }) {
+                    Text("⏮", fontSize = 28.sp, color = DarkText)
                 }
 
-                // Play/Pause besar
+                // Tombol Play Besar
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(76.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(listOf(Orange, OrangeSoft))
-                        )
+                        .background(Color(0xFF1A1A24))
+                        .drawBehind {
+                            drawCircle(
+                                color = NeonPink,
+                                radius = size.minDimension / 2 - 2.dp.toPx(),
+                                style = Stroke(width = 3.dp.toPx())
+                            )
+                        }
                         .clickable { playerManager.togglePlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (isPlaying) "⏸" else "▶",
+                        if (isPlaying) "⏸" else "▶",
                         fontSize = 32.sp,
-                        color = Color.White
+                        color = NeonPink
                     )
                 }
 
-                // Next
-                IconButton(
-                    onClick = { playerManager.next() },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Text("⏭", fontSize = 32.sp, color = Color.White)
+                // Tombol Next
+                IconButton(onClick = { playerManager.next() }) {
+                    Text("⏭", fontSize = 28.sp, color = DarkText)
                 }
 
-                // Repeat
-                IconButton(onClick = { playerManager.cycleRepeatMode() }) {
+                // Tombol kanan: Shuffle
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE0E5EC))
+                        .clickable { playerManager.toggleShuffle() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = when (playerManager.repeatMode) {
-                            1 -> "🔁"
-                            2 -> "🔂"
-                            else -> "🔁"
-                        },
-                        fontSize = 24.sp,
-                        color = if (playerManager.repeatMode > 0) Orange
-                                else TextSecondary
+                        "🔀",
+                        fontSize = 18.sp,
+                        color = if (playerManager.isShuffleOn) NeonPurple else DarkText
                     )
                 }
             }
@@ -286,80 +385,36 @@ fun NowPlayingScreen(
     }
 }
 
-// ==================== WALLPAPER BACKGROUND ====================
+// ==================== EQUALIZER BAR ====================
 @Composable
-private fun WallpaperBackground(config: WallpaperConfig) {
-    Box(Modifier.fillMaxSize()) {
-        when (config.type) {
-            "solid" -> {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color(config.colorStart))
-                )
-            }
-            "gradient" -> {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color(config.colorStart),
-                                    Color(config.colorEnd)
-                                )
-                            )
-                        )
-                )
-            }
-            "gallery" -> {
-                if (config.imageUri.isNotBlank()) {
-                    AsyncImage(
-                        model = config.imageUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(0xFF8A2BE2).copy(alpha = 0.6f),
-                                        DarkBg
-                                    )
-                                )
-                            )
-                    )
-                }
-            }
-            else -> {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color(0xFF8A2BE2).copy(alpha = 0.6f),
-                                    DarkBg
-                                )
-                            )
-                        )
-                )
-            }
-        }
+private fun EqualizerBar(index: Int, isPlaying: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "bar$index")
+    val heightFraction by infiniteTransition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 500 + (index * 100),
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "height$index"
+    )
 
-        // Overlay gelap
-        if (config.darkOverlay > 0f) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = config.darkOverlay))
+    val finalHeight = if (isPlaying) heightFraction else 0.2f
+
+    Box(
+        modifier = Modifier
+            .width(3.dp)
+            .fillMaxHeight(finalHeight)
+            .clip(RoundedCornerShape(50))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(NeonPink, NeonPurple)
+                )
             )
-        }
-    }
+    )
 }
 
 // ==================== HELPERS ====================
