@@ -20,15 +20,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # KUNCI PERBAIKAN: Paksa gunakan Gradle 8.2
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.2
 
-      # 1. BUAT KEYSTORE OTOMATIS (Karena Anda tidak punya PC untuk membuatnya manual)
+      # 1. BUAT KEYSTORE OTOMATIS
       - name: Generate Keystore
         run: |
           keytool -genkey -v -keystore app/uplayer-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias uplayer -storepass uplayer123 -keypass uplayer123 -dname "CN=Uplayer, OU=Dev, O=Dev, L=City, S=State, C=ID"
 
-      # 2. BUILD RELEASE APK (Menggunakan perintah 'gradle', bukan './gradlew')
+      # 2. BUILD RELEASE APK (Sekarang menggunakan Gradle 8.2)
       - name: Build Release APK
         run: gradle assembleRelease --stacktrace
 
