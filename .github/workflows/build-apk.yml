@@ -22,16 +22,24 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.2
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
+      # 1. BUAT KEYSTORE OTOMATIS
+      - name: Generate Keystore
+        run: |
+          keytool -genkey -v -keystore app/uplayer-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias uplayer -storepass uplayer123 -keypass uplayer123 -dname "CN=Uplayer, OU=Dev, O=Dev, L=City, S=State, C=ID"
+
+      # 2. BUILD RELEASE APK
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      # 3. UPLOAD APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: uplayer-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: uplayer-release-apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: warn
