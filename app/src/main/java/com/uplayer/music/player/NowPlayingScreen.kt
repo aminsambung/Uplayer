@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -55,11 +54,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
-// ==================== COLORS ====================
-private val DarkBg = Color(0xFF0F0F0F)
+// ==================== COLORS (Neon Theme) ====================
+private val DarkBg = Color(0xFF0F0B1A) // Gelap keunguan
 private val TextPrimary = Color.White
-private val TextSecondary = Color(0xFFB0B0B0)
-private val SliderRed = Color(0xFFFF5252)
+private val TextSecondary = Color(0xFFA09EB5)
+private val NeonPink = Color(0xFFFF4B91)
+private val NeonPurple = Color(0xFF8A2BE2)
 
 @Composable
 fun NowPlayingScreen(
@@ -109,14 +109,14 @@ fun NowPlayingScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .blur(50.dp)
+                .blur(60.dp) // Blur dipertebal sedikit
         )
 
-        // Overlay gelap agar teks jelas
+        // Overlay gelap agar teks dan UI terbaca jelas
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(DarkBg.copy(alpha = 0.75f))
         )
 
         // 2. KONTEN UTAMA
@@ -129,24 +129,35 @@ fun NowPlayingScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 16.dp),
+                    .padding(top = 24.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onClose) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                ) {
                     Icon(
                         Icons.Filled.KeyboardArrowDown,
                         contentDescription = "Tutup",
                         tint = TextPrimary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 Text(
-                    text = "⋮",
+                    text = "Sedang Diputar",
                     color = TextPrimary,
-                    fontSize = 24.sp,
-                    modifier = Modifier.padding(end = 8.dp)
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
                 )
+                IconButton(onClick = { /* TODO: Opsi Menu */ }) {
+                    Text(
+                        text = "⋮",
+                        color = TextPrimary,
+                        fontSize = 24.sp,
+                    )
+                }
             }
 
             // ----- INFO LAGU -----
@@ -172,7 +183,7 @@ fun NowPlayingScreen(
                 )
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(40.dp))
 
             // ----- ALBUM ART LINGKARAN (BERPUTAR) -----
             Box(
@@ -181,13 +192,21 @@ fun NowPlayingScreen(
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
+                // Efek bayangan/cahaya di belakang album
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .aspectRatio(1f)
+                        .background(NeonPurple.copy(alpha = 0.3f), CircleShape)
+                        .blur(40.dp)
+                )
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
                         .aspectRatio(1f)
                         .rotate(currentRotation)
-                        // Hapus efek clip dan ubah ke CircleShape
-                        .clip(CircleShape) 
+                        .clip(CircleShape)
                         .background(Color.DarkGray)
                 ) {
                     AsyncImage(
@@ -195,6 +214,13 @@ fun NowPlayingScreen(
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
+                    )
+                    // Efek lubang hitam di tengah (seperti piringan hitam)
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color.Black, CircleShape)
+                            .align(Alignment.Center)
                     )
                 }
             }
@@ -224,42 +250,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ----- KONTROL PLAY / PAUSE -----
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { playerManager.previous() }) {
-                    Icon(
-                        Icons.Filled.SkipPrevious,
-                        contentDescription = "Prev",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-
-                IconButton(onClick = { playerManager.togglePlayPause() }) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(56.dp)
-                    )
-                }
-
-                IconButton(onClick = { playerManager.next() }) {
-                    Icon(
-                        Icons.Filled.SkipNext,
-                        contentDescription = "Next",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
             // ----- SLIDER & WAKTU -----
             Column(Modifier.fillMaxWidth()) {
                 Slider(
@@ -275,13 +265,15 @@ fun NowPlayingScreen(
                     valueRange = 0f..(duration.coerceAtLeast(1).toFloat()),
                     colors = SliderDefaults.colors(
                         thumbColor = Color.White,
-                        activeTrackColor = SliderRed,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                        activeTrackColor = NeonPink, // Warna track aktif
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )
                 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
@@ -299,11 +291,63 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(24.dp))
 
+            // ----- KONTROL PLAY / PAUSE (Gaya Gradien) -----
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { playerManager.previous() }) {
+                    Icon(
+                        Icons.Filled.SkipPrevious,
+                        contentDescription = "Prev",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+
+                // Tombol Play Utama dengan Gradien
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(NeonPurple, NeonPink)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(
+                        onClick = { playerManager.togglePlayPause() },
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = Color.White,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+
+                IconButton(onClick = { playerManager.next() }) {
+                    Icon(
+                        Icons.Filled.SkipNext,
+                        contentDescription = "Next",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
             // ----- BOTTOM CONTROLS -----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = 32.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -311,11 +355,11 @@ fun NowPlayingScreen(
                     Text(
                         "🔁",
                         fontSize = 20.sp,
-                        color = if (playerManager.repeatMode > 0) SliderRed else TextSecondary
+                        color = if (playerManager.repeatMode > 0) NeonPink else TextSecondary
                     )
                 }
 
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = { /* TODO: Logika Favorit */ }) {
                     Icon(
                         Icons.Filled.FavoriteBorder,
                         contentDescription = "Favorite",
@@ -324,15 +368,15 @@ fun NowPlayingScreen(
                     )
                 }
 
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = { /* TODO: Equalizer */ }) {
                     Text("🎛️", fontSize = 20.sp, color = TextSecondary)
                 }
 
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = { /* TODO: Share */ }) {
                     Text("📤", fontSize = 20.sp, color = TextSecondary)
                 }
 
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = { /* TODO: Queue */ }) {
                     Text("☰", fontSize = 24.sp, color = TextSecondary)
                 }
             }
