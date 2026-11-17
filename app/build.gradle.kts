@@ -16,13 +16,25 @@ android {
         versionName = "1.0.0"
     }
 
+    // TAMBAHKAN BLOK INI UNTUK TANDA TANGAN OTOMATIS
+    signingConfigs {
+        create("release") {
+            storeFile = file("uplayer-release.jks")
+            storePassword = "uplayer123"
+            keyAlias = "uplayer"
+            keyPassword = "uplayer123"
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true      // AKTIFKAN INI UNTUK MEMPERKECIL UKURAN
+            isShrinkResources = true    // AKTIFKAN INI UNTUK MEMBUANG RESOURCE TIDAK TERPAKAI
+            signingConfig = signingConfigs.getByName("release") // Hubungkan ke signing config
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -61,8 +73,6 @@ dependencies {
     // Guava
     implementation("com.google.guava:guava:32.1.3-android")
 
-    implementation("androidx.compose.material:material-icons-extended")
-    
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
@@ -73,9 +83,6 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.0")
     implementation("androidx.room:room-ktx:2.6.0")
     ksp("androidx.room:room-compiler:2.6.0")
-
-     // Tambahkan baris ini untuk mendapatkan ikon SkipNext, SkipPrevious, dll.
-    implementation("androidx.compose.material:material-icons-extended")
 
     // Tag editor
     implementation("net.jthink:jaudiotagger:3.0.1")
