@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -47,6 +48,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,8 +61,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -75,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -103,13 +105,14 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// ==================== COLORS ====================
-val UplayerOrange = Color(0xFFFF6B00)
+// ==================== COLORS (Neon Theme) ====================
+val UplayerOrange = Color(0xFFFF4B91) // Pink Neon
+val UplayerPurple = Color(0xFF8A2BE2) // Ungu Neon
 val UplayerRed = Color(0xFFEF4444)
-val UplayerDarkBg = Color(0xFF0F0F0F)
-val UplayerSurface = Color(0xFF1E1E1E)
-val UplayerSurface2 = Color(0xFF2C2C2C)
-val UplayerTextSecondary = Color(0xFFB0B0B0)
+val UplayerDarkBg = Color(0xFF0F0B1A) // Background gelap keunguan
+val UplayerSurface = Color(0xFF1C152E) // Warna Card
+val UplayerSurface2 = Color(0xFF2C2145) // Warna Card lebih terang
+val UplayerTextSecondary = Color(0xFFA09EB5)
 
 // ==================== ACTIVITY ====================
 class MainActivity : ComponentActivity() {
@@ -145,15 +148,12 @@ fun MainScreen() {
     var selectedAlbum by remember { mutableStateOf<String?>(null) }
     var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
 
-    // ===== OVERLAY PRIORITY (paling atas) =====
-
-    // Wallpaper
+    // ===== OVERLAY PRIORITY =====
     if (showWallpaper) {
         WallpaperScreen(onBack = { showWallpaper = false })
         return
     }
 
-    // Album Detail
     selectedAlbum?.let { albumName ->
         val albumTracks = allTracks
             .filter { it.album == albumName }
@@ -167,7 +167,6 @@ fun MainScreen() {
         return
     }
 
-    // Playlist Detail
     selectedPlaylist?.let { (id, name) ->
         PlaylistDetailScreen(
             playlistId = id,
@@ -179,7 +178,6 @@ fun MainScreen() {
         return
     }
 
-    // Tag Editor
     tagEditPath?.let { path ->
         TagEditorScreen(
             filePath = path,
@@ -189,7 +187,6 @@ fun MainScreen() {
         return
     }
 
-    // Equalizer
     if (showEqualizer) {
         LaunchedEffect(Unit) { playerManager.refreshAudioSessionId() }
         EqualizerScreen(
@@ -199,7 +196,6 @@ fun MainScreen() {
         return
     }
 
-    // Now Playing
     if (showNowPlaying) {
         NowPlayingScreen(
             playerManager = playerManager,
@@ -223,8 +219,9 @@ fun MainScreen() {
                     )
                 }
                 NavigationBar(
-                    containerColor = UplayerSurface,
-                    contentColor = Color.White
+                    containerColor = UplayerSurface.copy(alpha = 0.95f), // Sedikit transparan
+                    contentColor = Color.White,
+                    tonalElevation = 0.dp
                 ) {
                     NavigationBarItem(
                         selected = selectedTab == 0,
@@ -274,12 +271,12 @@ fun MainScreen() {
 private fun navItemColors() = NavigationBarItemDefaults.colors(
     selectedIconColor = UplayerOrange,
     selectedTextColor = UplayerOrange,
-    indicatorColor = UplayerOrange.copy(alpha = 0.15f),
+    indicatorColor = Color.Transparent, // Hilangkan kapsul background
     unselectedIconColor = UplayerTextSecondary,
     unselectedTextColor = UplayerTextSecondary
 )
 
-// ==================== MINI PLAYER ====================
+// ==================== MINI PLAYER (Gradient Style) ====================
 @Composable
 fun MiniPlayer(
     track: Track,
@@ -288,43 +285,51 @@ fun MiniPlayer(
     onNext: () -> Unit,
     onExpand: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(UplayerSurface)
-            .clickable { onExpand() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    // Padding luar agar mini player terlihat melayang
+    Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(UplayerSurface2)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(UplayerSurface2, UplayerPurple.copy(alpha = 0.8f))
+                    )
+                )
+                .clickable { onExpand() }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                track.title, color = Color.White,
-                fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1
-            )
-            Text(
-                track.artist, color = UplayerTextSecondary,
-                fontSize = 11.sp, maxLines = 1
-            )
-        }
-        IconButton(onClick = onPlayPause) {
-            Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp, color = UplayerOrange)
-        }
-        IconButton(onClick = onNext) {
-            Text("⏭", fontSize = 20.sp, color = Color.White)
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(UplayerSurface)
+            ) {
+                AsyncImage(
+                    model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    track.title, color = Color.White,
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1
+                )
+                Text(
+                    track.artist, color = UplayerTextSecondary,
+                    fontSize = 12.sp, maxLines = 1
+                )
+            }
+            IconButton(onClick = onPlayPause) {
+                Text(if (isPlaying) "⏸" else "▶", fontSize = 22.sp, color = UplayerOrange)
+            }
+            IconButton(onClick = onNext) {
+                Text("⏭", fontSize = 20.sp, color = Color.White)
+            }
         }
     }
 }
@@ -417,60 +422,76 @@ fun LibraryScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
+        // MENGGANTI TABROW DENGAN LAZYROW FILTERCHIP (Gaya Pill)
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = UplayerDarkBg,
-                contentColor = UplayerOrange
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = {
-                        Text(
-                            "Songs",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold
-                                         else FontWeight.Normal,
-                            fontSize = 12.sp
-                        )
-                    }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = {
-                        Text(
-                            "❤️ ${favoriteIds.size}",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold
-                                         else FontWeight.Normal,
-                            fontSize = 12.sp
-                        )
-                    }
-                )
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    text = {
-                        Text(
-                            "📝 ${playlists.size}",
-                            fontWeight = if (selectedTab == 2) FontWeight.Bold
-                                         else FontWeight.Normal,
-                            fontSize = 12.sp
-                        )
-                    }
-                )
-                Tab(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    text = {
-                        Text(
-                            "Albums",
-                            fontWeight = if (selectedTab == 3) FontWeight.Bold
-                                         else FontWeight.Normal,
-                            fontSize = 12.sp
-                        )
-                    }
-                )
+                item {
+                    FilterChip(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        label = { 
+                            Text("Songs", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) 
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = UplayerPurple,
+                            containerColor = UplayerSurface,
+                            selectedLabelColor = Color.White,
+                            labelColor = UplayerTextSecondary
+                        ),
+                        border = null
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        label = { 
+                            Text("❤️ ${favoriteIds.size}", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) 
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = UplayerPurple,
+                            containerColor = UplayerSurface,
+                            selectedLabelColor = Color.White,
+                            labelColor = UplayerTextSecondary
+                        ),
+                        border = null
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        label = { 
+                            Text("📝 ${playlists.size}", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) 
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = UplayerPurple,
+                            containerColor = UplayerSurface,
+                            selectedLabelColor = Color.White,
+                            labelColor = UplayerTextSecondary
+                        ),
+                        border = null
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        label = { 
+                            Text("Albums", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) 
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = UplayerPurple,
+                            containerColor = UplayerSurface,
+                            selectedLabelColor = Color.White,
+                            labelColor = UplayerTextSecondary
+                        ),
+                        border = null
+                    )
+                }
             }
         }
 
@@ -508,7 +529,7 @@ fun LibraryScreen(
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp) // Hapus Divider, beri jarak
                 ) {
                     items(displayedTracks, key = { it.id }) { track ->
                         TrackRow(
@@ -524,7 +545,6 @@ fun LibraryScreen(
                                 }
                             }
                         )
-                        Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
                     }
                 }
             }
@@ -682,7 +702,7 @@ fun AlbumCard(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(UplayerSurface)
         ) {
             AsyncImage(
@@ -696,7 +716,7 @@ fun AlbumCard(
         Text(
             text = albumName,
             color = Color.White,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             maxLines = 1
         )
@@ -731,22 +751,29 @@ fun PlaylistList(
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = onCreateClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Filled.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Buat Playlist")
+                    Text("Buat Playlist", fontWeight = FontWeight.Bold)
                 }
             }
         }
     } else {
-        LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+        LazyColumn(
+            contentPadding = PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp) // Jarak antar card
+        ) {
             items(playlists, key = { it.id }) { playlist ->
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 16.dp) // Padding luar card
+                        .clip(RoundedCornerShape(16.dp)) // Sudut card
+                        .background(UplayerSurface) // Warna background card
                         .clickable { onClick(playlist) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -762,7 +789,7 @@ fun PlaylistList(
                     Text(
                         playlist.name,
                         color = Color.White,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         modifier = Modifier.weight(1f)
                     )
@@ -774,7 +801,6 @@ fun PlaylistList(
                         )
                     }
                 }
-                Divider(color = Color(0xFF2C2C2C), thickness = 1.dp)
             }
         }
     }
@@ -914,7 +940,7 @@ fun CreatePlaylistDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = UplayerSurface,
-        title = { Text("Buat Playlist Baru", color = Color.White) },
+        title = { Text("Buat Playlist Baru", color = Color.White, fontWeight = FontWeight.Bold) },
         text = {
             OutlinedTextField(
                 value = name,
@@ -1032,7 +1058,7 @@ fun EmptyFavoritesContent() {
     }
 }
 
-// ==================== TRACK ROW ====================
+// ==================== TRACK ROW (Card Style) ====================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
@@ -1043,69 +1069,78 @@ fun TrackRow(
     onLongClick: () -> Unit = {},
     onFavoriteToggle: () -> Unit = {}
 ) {
-    Row(
+    // Box luar untuk padding (jarak antar card)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .background(
-                if (isPlaying) UplayerOrange.copy(alpha = 0.1f)
-                else Color.Transparent
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(UplayerSurface)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)) // Sudut melengkung
+                .background(
+                    if (isPlaying) UplayerPurple.copy(alpha = 0.3f)
+                    else UplayerSurface // Warna card
+                )
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            if (isPlaying) {
-                Box(
-                    Modifier.fillMaxSize()
-                        .background(UplayerOrange.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) { Text("⏸", fontSize = 20.sp, color = Color.White) }
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(UplayerSurface2)
+            ) {
+                AsyncImage(
+                    model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (isPlaying) {
+                    Box(
+                        Modifier.fillMaxSize()
+                            .background(UplayerPurple.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) { Text("⏸", fontSize = 20.sp, color = Color.White) }
+                }
             }
-        }
 
-        Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(12.dp))
 
-        Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    track.title,
+                    color = if (isPlaying) UplayerOrange else Color.White,
+                    fontWeight = FontWeight.Bold, // Bold
+                    fontSize = 15.sp, maxLines = 1
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    track.artist, color = UplayerTextSecondary,
+                    fontSize = 12.sp, maxLines = 1
+                )
+            }
+
+            IconButton(onClick = onFavoriteToggle) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite
+                                  else Icons.Filled.FavoriteBorder,
+                    contentDescription = null,
+                    tint = if (isFavorite) UplayerRed else UplayerTextSecondary
+                )
+            }
+
             Text(
-                track.title,
-                color = if (isPlaying) UplayerOrange else Color.White,
-                fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                track.artist, color = UplayerTextSecondary,
-                fontSize = 12.sp, maxLines = 1
+                track.formattedDuration(),
+                color = UplayerTextSecondary, fontSize = 12.sp
             )
         }
-
-        IconButton(onClick = onFavoriteToggle) {
-            Icon(
-                imageVector = if (isFavorite) Icons.Filled.Favorite
-                              else Icons.Filled.FavoriteBorder,
-                contentDescription = null,
-                tint = if (isFavorite) UplayerRed else UplayerTextSecondary
-            )
-        }
-
-        Text(
-            track.formattedDuration(),
-            color = Color(0xFF6E6E6E), fontSize = 12.sp
-        )
     }
 }
 
@@ -1137,16 +1172,19 @@ fun SettingsItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp)) // Card melengkung
+            .background(UplayerSurface) // Warna surface
             .clickable { onClick() }
-            .padding(vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp), // Padding dalam card
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Medium)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
             Text(subtitle, color = UplayerTextSecondary, fontSize = 12.sp)
         }
         Text("›", color = UplayerTextSecondary, fontSize = 24.sp)
     }
+    Spacer(Modifier.height(8.dp)) // Jarak antar item di Settings
 }
 
 // ==================== PLACEHOLDER ====================
