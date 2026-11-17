@@ -19,14 +19,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -109,7 +104,7 @@ fun NowPlayingScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .blur(60.dp) // Blur dipertebal sedikit
+                .blur(60.dp)
         )
 
         // Overlay gelap agar teks dan UI terbaca jelas
@@ -297,13 +292,9 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Tombol Prev (Menggunakan Teks Emoji)
                 IconButton(onClick = { playerManager.previous() }) {
-                    Icon(
-                        Icons.Filled.SkipPrevious,
-                        contentDescription = "Prev",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(44.dp)
-                    )
+                    Text("⏮", fontSize = 32.sp, color = TextPrimary)
                 }
 
                 // Tombol Play Utama dengan Gradien
@@ -322,22 +313,18 @@ fun NowPlayingScreen(
                         onClick = { playerManager.togglePlayPause() },
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = Color.White,
-                            modifier = Modifier.size(40.dp)
+                        // Teks Play / Pause Emoji
+                        Text(
+                            text = if (isPlaying) "⏸" else "▶", 
+                            fontSize = 36.sp, 
+                            color = Color.White
                         )
                     }
                 }
 
+                // Tombol Next (Menggunakan Teks Emoji)
                 IconButton(onClick = { playerManager.next() }) {
-                    Icon(
-                        Icons.Filled.SkipNext,
-                        contentDescription = "Next",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(44.dp)
-                    )
+                    Text("⏭", fontSize = 32.sp, color = TextPrimary)
                 }
             }
 
