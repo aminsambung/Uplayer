@@ -60,6 +60,8 @@ dependencies {
     
     // Guava
     implementation("com.google.guava:guava:32.1.3-android")
+
+    implementation("androidx.compose.material:material-icons-extended")
     
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
