@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -111,10 +111,10 @@ fun NowPlayingScreen(
     // ===== GESTURE & ANIMASI PILL STATE =====
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
-    val pillAlpha = remember { Animatable(0f) } // Untuk memudarkan pill
+    val pillAlpha = remember { Animatable(0f) }
     var pillText by remember { mutableStateOf("") }
     
-    // Batas geser untuk memicu Next/Prev
+    // Batas geser (dalam pixel) untuk memicu Next/Prev
     val swipeThreshold = 150f 
 
     // ===== ROOT =====
@@ -145,10 +145,11 @@ fun NowPlayingScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = {
+                            // Ketuk 2x: Play/Pause
                             playerManager.togglePlayPause()
                         },
                         onLongPress = {
-                            // Aksi Tap Lama: Kembali ke menu utama/pemutar musik
+                            // Tekan Lama: Kembali ke pemutar musik (tutup layar)
                             onClose()
                         }
                     )
@@ -156,32 +157,31 @@ fun NowPlayingScreen(
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { 
-                            offsetX.snapTo(0f) 
-                            pillAlpha.snapTo(1f)
+                            scope.launch {
+                                offsetX.snapTo(0f) 
+                                pillAlpha.snapTo(1f)
+                            }
                         },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             scope.launch {
-                                // Hanya izinkan geser horizontal (abaikan vertikal)
                                 val newOffset = offsetX.value + dragAmount.x
                                 offsetX.snapTo(newOffset)
                                 
-                                // Tentukan teks pill berdasarkan arah geser
+                                // Teks pill dinamis sesuai arah geser
                                 pillText = if (newOffset > 0) "⏮ Previous" else "Next ⏭"
                             }
                         },
                         onDragEnd = {
                             scope.launch {
                                 if (offsetX.value > swipeThreshold) {
-                                    // Swipe Kanan -> Previous
                                     playerManager.previous()
                                 } else if (offsetX.value < -swipeThreshold) {
-                                    // Swipe Kiri -> Next
                                     playerManager.next()
                                 }
-                                // Animasi memantul kembali ke tengah (Spring)
+                                // Memantul kembali ke tengah
                                 offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
-                                // Hilangkan Pill secara perlahan
+                                // Memudarkan pill
                                 pillAlpha.animateTo(0f, animationSpec = tween(300))
                             }
                         },
@@ -286,7 +286,7 @@ fun NowPlayingScreen(
                         .alpha(pillAlpha.value)
                         .background(
                             color = NeonPink,
-                            shape = RoundedCornerShape(50) // Bentuk Kapsul
+                            shape = RoundedCornerShape(50)
                         )
                         .padding(horizontal = 24.dp, vertical = 12.dp)
                 ) {
