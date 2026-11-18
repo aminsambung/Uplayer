@@ -1,12 +1,16 @@
 package com.uplayer.music.player
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +23,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -33,10 +39,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -46,13 +55,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // ==================== COLORS (Neon Theme) ====================
-private val DarkBg = Color(0xFF0F0B1A) // Gelap keunguan
+private val DarkBg = Color(0xFF0F0B1A)
 private val TextPrimary = Color.White
 private val TextSecondary = Color(0xFFA09EB5)
 private val NeonPink = Color(0xFFFF4B91)
@@ -78,7 +90,7 @@ fun NowPlayingScreen(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20_000, easing = LinearEasing), // 20 detik per putaran
+            animation = tween(durationMillis = 20_000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "rotation"
@@ -96,10 +108,19 @@ fun NowPlayingScreen(
         }
     }
 
+    // ===== GESTURE & ANIMASI PILL STATE =====
+    val scope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+    val pillAlpha = remember { Animatable(0f) } // Untuk memudarkan pill
+    var pillText by remember { mutableStateOf("") }
+    
+    // Batas geser untuk memicu Next/Prev
+    val swipeThreshold = 150f 
+
     // ===== ROOT =====
     Box(modifier = Modifier.fillMaxSize().background(DarkBg)) {
 
-        // 1. BACKGROUND BLUR (Dari Album Art)
+        // 1. BACKGROUND BLUR
         AsyncImage(
             model = AlbumArtHelper.getAlbumArtUri(track.albumId),
             contentDescription = null,
@@ -109,20 +130,71 @@ fun NowPlayingScreen(
                 .blur(80.dp)
         )
 
-        // Overlay gelap agar teks dan UI terbaca jelas
+        // Overlay gelap
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBg.copy(alpha = 0.85f))
         )
 
-        // 2. KONTEN UTAMA
+        // 2. KONTEN UTAMA DENGAN GESTURE
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = {
+                            playerManager.togglePlayPause()
+                        },
+                        onLongPress = {
+                            // Aksi Tap Lama: Kembali ke menu utama/pemutar musik
+                            onClose()
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { 
+                            offsetX.snapTo(0f) 
+                            pillAlpha.snapTo(1f)
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                // Hanya izinkan geser horizontal (abaikan vertikal)
+                                val newOffset = offsetX.value + dragAmount.x
+                                offsetX.snapTo(newOffset)
+                                
+                                // Tentukan teks pill berdasarkan arah geser
+                                pillText = if (newOffset > 0) "⏮ Previous" else "Next ⏭"
+                            }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                if (offsetX.value > swipeThreshold) {
+                                    // Swipe Kanan -> Previous
+                                    playerManager.previous()
+                                } else if (offsetX.value < -swipeThreshold) {
+                                    // Swipe Kiri -> Next
+                                    playerManager.next()
+                                }
+                                // Animasi memantul kembali ke tengah (Spring)
+                                offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                                // Hilangkan Pill secara perlahan
+                                pillAlpha.animateTo(0f, animationSpec = tween(300))
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch {
+                                offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                                pillAlpha.animateTo(0f, animationSpec = tween(300))
+                            }
+                        }
+                    )
+                }
         ) {
-            // ----- TOP BAR -----
+            // TOP BAR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,32 +204,17 @@ fun NowPlayingScreen(
             ) {
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                    modifier = Modifier.background(Color.White.copy(alpha = 0.1f), CircleShape)
                 ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowDown,
-                        contentDescription = "Tutup",
-                        tint = TextPrimary,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Icon(Icons.Filled.KeyboardArrowDown, "Tutup", tint = TextPrimary)
                 }
-                Text(
-                    text = "Sedang Diputar",
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                IconButton(onClick = { /* TODO: Opsi Menu */ }) {
-                    Text(
-                        text = "⋮",
-                        color = TextPrimary,
-                        fontSize = 24.sp,
-                    )
+                Text("Sedang Diputar", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                IconButton(onClick = { /* TODO: Menu */ }) {
+                    Text("⋮", color = TextPrimary, fontSize = 24.sp)
                 }
             }
 
-            // ----- INFO LAGU -----
+            // INFO LAGU
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -182,14 +239,14 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(40.dp))
 
-            // ----- ALBUM ART LINGKARAN (BERPUTAR) -----
+            // ALBUM ART + PILL ANIMATION
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                // Efek bayangan/cahaya di belakang album
+                // Efek cahaya di belakang
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
@@ -198,6 +255,7 @@ fun NowPlayingScreen(
                         .blur(40.dp)
                 )
 
+                // Gambar Album Berputar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
@@ -212,7 +270,7 @@ fun NowPlayingScreen(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    // Efek lubang hitam di tengah (seperti piringan hitam)
+                    // Lubang piringan hitam
                     Box(
                         modifier = Modifier
                             .size(24.dp)
@@ -220,34 +278,30 @@ fun NowPlayingScreen(
                             .align(Alignment.Center)
                     )
                 }
+
+                // ANIMASI PILL (Muncul saat digeser)
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                        .alpha(pillAlpha.value)
+                        .background(
+                            color = NeonPink,
+                            shape = RoundedCornerShape(50) // Bentuk Kapsul
+                        )
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = pillText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
             }
 
             Spacer(Modifier.weight(1f))
 
-            // ----- INFO TAMBAHAN -----
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = track.album,
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = " ›",
-                    color = TextSecondary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // ----- SLIDER & WAKTU -----
+            // SLIDER & WAKTU
             Column(Modifier.fillMaxWidth()) {
                 Slider(
                     value = if (isDragging == 1f) dragValue else position,
@@ -262,69 +316,46 @@ fun NowPlayingScreen(
                     valueRange = 0f..(duration.coerceAtLeast(1).toFloat()),
                     colors = SliderDefaults.colors(
                         thumbColor = Color.White,
-                        activeTrackColor = NeonPink, // Warna track aktif
+                        activeTrackColor = NeonPink,
                         inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )
-                
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()),
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = formatMs(duration),
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    Text(formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()), color = TextSecondary, fontSize = 12.sp)
+                    Text(formatMs(duration), color = TextSecondary, fontSize = 12.sp)
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ----- KONTROL PLAY / PAUSE (Gaya Gradien) -----
+            // KONTROL PLAY / PAUSE
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Tombol Prev (Menggunakan Teks Emoji)
                 IconButton(onClick = { playerManager.previous() }) {
                     Text("⏮", fontSize = 32.sp, color = TextPrimary)
                 }
 
-                // Tombol Play Utama dengan Gradien
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(NeonPurple, NeonPink)
-                            )
-                        ),
+                        .background(brush = Brush.linearGradient(colors = listOf(NeonPurple, NeonPink))),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(
                         onClick = { playerManager.togglePlayPause() },
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Teks Play / Pause Emoji
-                        Text(
-                            text = if (isPlaying) "⏸" else "▶", 
-                            fontSize = 36.sp, 
-                            color = Color.White
-                        )
+                        Text(if (isPlaying) "⏸" else "▶", fontSize = 36.sp, color = Color.White)
                     }
                 }
 
-                // Tombol Next (Menggunakan Teks Emoji)
                 IconButton(onClick = { playerManager.next() }) {
                     Text("⏭", fontSize = 32.sp, color = TextPrimary)
                 }
@@ -332,39 +363,24 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // ----- BOTTOM CONTROLS -----
+            // BOTTOM CONTROLS
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { playerManager.cycleRepeatMode() }) {
-                    Text(
-                        "🔁",
-                        fontSize = 20.sp,
-                        color = if (playerManager.repeatMode > 0) NeonPink else TextSecondary
-                    )
+                    Text("🔁", fontSize = 20.sp, color = if (playerManager.repeatMode > 0) NeonPink else TextSecondary)
                 }
-
-                IconButton(onClick = { /* TODO: Logika Favorit */ }) {
-                    Icon(
-                        Icons.Filled.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                IconButton(onClick = { /* TODO: Favorit */ }) {
+                    Icon(Icons.Filled.FavoriteBorder, "Favorite", tint = TextSecondary, modifier = Modifier.size(24.dp))
                 }
-
                 IconButton(onClick = { /* TODO: Equalizer */ }) {
                     Text("🎚️", fontSize = 20.sp, color = TextSecondary)
                 }
-
                 IconButton(onClick = { /* TODO: Share */ }) {
                     Text("↗️", fontSize = 20.sp, color = TextSecondary)
                 }
-
                 IconButton(onClick = { /* TODO: Queue */ }) {
                     Text("≡", fontSize = 26.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                 }
