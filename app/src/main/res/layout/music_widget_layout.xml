@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_gradient"
+    android:orientation="horizontal"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp"
+    android:gravity="center_vertical">
+
+    <!-- 1. Album Art -->
+    <ImageView
+        android:id="@+id/widget_album_art"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/widget_album_placeholder" />
+
+    <!-- 2. Info Lagu -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Judul Lagu"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/widget_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Artis"
+            android:textColor="#B0A8C8"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Tombol Love -->
+    <ImageButton
+        android:id="@+id/widget_btn_love"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_myplaces"
+        android:tint="#A09EB5"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Garis Pemisah -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="24dp"
+        android:background="#33FFFFFF"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Tombol Prev -->
+    <ImageButton
+        android:id="@+id/widget_btn_prev"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_media_previous"
+        android:tint="#FFFFFF" />
+
+    <!-- Tombol Play/Pause (Di dalam Lingkaran Gradien) -->
+    <FrameLayout
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="8dp"
+        android:background="@drawable/widget_play_bg">
+        <ImageButton
+            android:id="@+id/widget_btn_play_pause"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_play"
+            android:tint="#FFFFFF" />
+    </FrameLayout>
+
+    <!-- Tombol Next -->
+    <ImageButton
+        android:id="@+id/widget_btn_next"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_media_next"
+        android:tint="#FFFFFF" />
+
+    <!-- Visualizer & Waktu -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+        
+        <ImageView
+            android:layout_width="60dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_visualizer_fake" />
+        
+        <TextView
+            android:id="@+id/widget_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0:00 / 0:00"
+            android:textColor="#B0A8C8"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- Tombol Shuffle & Repeat -->
+    <ImageButton
+        android:id="@+id/widget_btn_shuffle"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:tint="#FFFFFF"
+        android:layout_marginStart="12dp" />
+
+    <ImageButton
+        android:id="@+id/widget_btn_repeat"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_rotate"
+        android:tint="#FFFFFF" />
+
+</LinearLayout>
