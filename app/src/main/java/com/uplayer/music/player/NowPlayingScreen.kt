@@ -104,14 +104,14 @@ fun NowPlayingScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .blur(60.dp)
+                .blur(80.dp)
         )
 
         // Overlay gelap agar teks dan UI terbaca jelas
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBg.copy(alpha = 0.75f))
+                .background(DarkBg.copy(alpha = 0.85f))
         )
 
         // 2. KONTEN UTAMA
@@ -213,7 +213,7 @@ fun NowPlayingScreen(
                     // Efek lubang hitam di tengah (seperti piringan hitam)
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(24.dp)
                             .background(Color.Black, CircleShape)
                             .align(Alignment.Center)
                     )
@@ -356,15 +356,15 @@ fun NowPlayingScreen(
                 }
 
                 IconButton(onClick = { /* TODO: Equalizer */ }) {
-                    Text("🎛️", fontSize = 20.sp, color = TextSecondary)
+                    Text("🎚️", fontSize = 20.sp, color = TextSecondary)
                 }
 
                 IconButton(onClick = { /* TODO: Share */ }) {
-                    Text("📤", fontSize = 20.sp, color = TextSecondary)
+                    Text("↗️", fontSize = 20.sp, color = TextSecondary)
                 }
 
                 IconButton(onClick = { /* TODO: Queue */ }) {
-                    Text("☰", fontSize = 24.sp, color = TextSecondary)
+                    Text("≡", fontSize = 26.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                 }
             }
         }
