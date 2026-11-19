@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -50,8 +49,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -337,7 +334,7 @@ fun LibraryScreen(
     var favoriteIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var playlists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(0) } // 0: Songs, 1: Favorit, 2: Playlist, 3: Albums
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -377,7 +374,7 @@ fun LibraryScreen(
 
     Column(Modifier.fillMaxSize()) {
         
-        // --- TOP BAR BARU (Search & Titik Tiga) ---
+        // --- TOP BAR ---
         TopAppBar(
             title = { 
                 Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold) 
@@ -417,82 +414,31 @@ fun LibraryScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
-        // --- HEADER OVO-STYLE ---
+        // --- HEADER OVO-STYLE (Navigasi Utama) ---
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
-            UplayerHeaderCard(totalSongs = allTracks.size)
+            UplayerHeaderCard(
+                totalSongs = allTracks.size,
+                selectedTab = selectedTab,
+                onTabSelected = { newTab -> selectedTab = newTab }
+            )
         }
 
-        // --- PILL FILTER CHIPS (Teks Murni) ---
+        // --- JUDUL DINAMIS ---
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        label = { 
-                            Text("Songs", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) 
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = UplayerPurple,
-                            containerColor = UplayerSurface,
-                            selectedLabelColor = Color.White,
-                            labelColor = UplayerTextSecondary
-                        ),
-                        border = null
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        label = { 
-                            Text("Favorit (${favoriteIds.size})", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) 
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = UplayerPurple,
-                            containerColor = UplayerSurface,
-                            selectedLabelColor = Color.White,
-                            labelColor = UplayerTextSecondary
-                        ),
-                        border = null
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        label = { 
-                            Text("Playlist (${playlists.size})", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) 
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = UplayerPurple,
-                            containerColor = UplayerSurface,
-                            selectedLabelColor = Color.White,
-                            labelColor = UplayerTextSecondary
-                        ),
-                        border = null
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        label = { 
-                            Text("Albums", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) 
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = UplayerPurple,
-                            containerColor = UplayerSurface,
-                            selectedLabelColor = Color.White,
-                            labelColor = UplayerTextSecondary
-                        ),
-                        border = null
-                    )
-                }
+            val title = when(selectedTab) {
+                0 -> "Semua Lagu"
+                1 -> "Lagu Favorit"
+                2 -> "Playlist Saya"
+                3 -> "Daftar Album"
+                else -> ""
             }
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
         }
 
         when {
@@ -617,7 +563,11 @@ fun LibraryScreen(
 
 // ==================== HEADER CARD (OVO Style) ====================
 @Composable
-fun UplayerHeaderCard(totalSongs: Int) {
+fun UplayerHeaderCard(
+    totalSongs: Int,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -665,37 +615,70 @@ fun UplayerHeaderCard(totalSongs: Int) {
 
             Spacer(Modifier.height(32.dp))
 
-            // Bagian Bawah (4 Menu)
+            // Bagian Bawah (4 Menu Navigasi)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                HeaderMenuItem("🎵", "Song")
-                HeaderMenuItem("❤️", "Favorit")
-                HeaderMenuItem("📝", "Playlist")
-                HeaderMenuItem("💿", "Album")
+                HeaderMenuItem(
+                    emoji = "🎵", 
+                    label = "Song", 
+                    isSelected = selectedTab == 0, 
+                    onClick = { onTabSelected(0) }
+                )
+                HeaderMenuItem(
+                    emoji = "❤️", 
+                    label = "Favorit", 
+                    isSelected = selectedTab == 1, 
+                    onClick = { onTabSelected(1) }
+                )
+                HeaderMenuItem(
+                    emoji = "📝", 
+                    label = "Playlist", 
+                    isSelected = selectedTab == 2, 
+                    onClick = { onTabSelected(2) }
+                )
+                HeaderMenuItem(
+                    emoji = "💿", 
+                    label = "Album", 
+                    isSelected = selectedTab == 3, 
+                    onClick = { onTabSelected(3) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun HeaderMenuItem(emoji: String, label: String) {
+fun HeaderMenuItem(
+    emoji: String, 
+    label: String, 
+    isSelected: Boolean, 
+    onClick: () -> Unit
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { /* TODO: Aksi klik menu */ }
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(8.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.2f)),
+                .background(if (isSelected) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
             Text(text = emoji, fontSize = 24.sp)
         }
         Spacer(Modifier.height(8.dp))
-        Text(text = label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(
+            text = label, 
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f), 
+            fontSize = 12.sp, 
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
@@ -709,13 +692,6 @@ fun AlbumGrid(tracks: List<Track>, onClick: (String) -> Unit) {
         .sortedBy { it.first.lowercase() }
 
     Column(Modifier.fillMaxSize()) {
-        Text(
-            text = "${albums.size} album ditemukan",
-            color = UplayerTextSecondary,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
         if (albums.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
