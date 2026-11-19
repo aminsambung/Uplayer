@@ -59,6 +59,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -74,10 +76,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -198,16 +200,17 @@ fun MainScreen() {
         return
     }
     
+    // ===== SEARCH SCREEN =====
     if (showSearch) {
-        PlaceholderScreen(
-            name = "Search",
-            icon = Icons.Filled.Search,
+        SearchScreen(
+            allTracks = allTracks,
+            playerManager = playerManager,
             onBack = { showSearch = false }
         )
         return
     }
 
-    // ===== MAIN SCAFFOLD (Tanpa Bottom Navigation) =====
+    // ===== MAIN SCAFFOLD =====
     Scaffold(
         containerColor = UplayerDarkBg,
         bottomBar = {
@@ -233,6 +236,94 @@ fun MainScreen() {
                 onOpenEqualizer = { showEqualizer = true },
                 onOpenWallpaper = { showWallpaper = true }
             )
+        }
+    }
+}
+
+// ==================== SEARCH SCREEN ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchScreen(
+    allTracks: List<Track>,
+    playerManager: PlayerManager,
+    onBack: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredTracks = remember(searchQuery, allTracks) {
+        if (searchQuery.isEmpty()) {
+            emptyList()
+        } else {
+            allTracks.filter { 
+                it.title.contains(searchQuery, ignoreCase = true) || 
+                it.artist.contains(searchQuery, ignoreCase = true) ||
+                it.album.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(UplayerDarkBg)) {
+        // Top Bar dengan TextField
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp, start = 8.dp, end = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Text("←", color = Color.White, fontSize = 24.sp)
+            }
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Cari lagu, artis, atau album...", color = UplayerTextSecondary) },
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp)),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = UplayerSurface,
+                    unfocusedContainerColor = UplayerSurface,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = UplayerOrange,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = UplayerTextSecondary) }
+            )
+        }
+
+        // Hasil Pencarian
+        if (searchQuery.isNotEmpty()) {
+            if (filteredTracks.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Lagu tidak ditemukan.", color = UplayerTextSecondary)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
+                ) {
+                    items(filteredTracks, key = { it.id }) { track ->
+                        TrackRow(
+                            track = track,
+                            isPlaying = playerManager.currentTrack?.id == track.id && playerManager.isPlaying,
+                            isFavorite = false, // Sederhanakan untuk search screen
+                            onClick = { playerManager.playTrack(track, filteredTracks) },
+                            onLongClick = { /* Bisa tambahkan aksi */ },
+                            onFavoriteToggle = { /* Bisa tambahkan aksi */ }
+                        )
+                    }
+                }
+            }
+        } else {
+            // Tampilan kosong saat belum mengetik
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = UplayerSurface2, modifier = Modifier.size(80.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("Ketik untuk mencari musik", color = UplayerTextSecondary)
+                }
+            }
         }
     }
 }
@@ -334,7 +425,7 @@ fun LibraryScreen(
     var favoriteIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var playlists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) } // 0: Songs, 1: Favorit, 2: Playlist, 3: Albums
+    var selectedTab by remember { mutableStateOf(0) }
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -380,11 +471,9 @@ fun LibraryScreen(
                 Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold) 
             },
             actions = {
-                // Ikon Search
                 IconButton(onClick = onSearchClick) {
                     Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.White)
                 }
-                // Ikon Titik Tiga (Dropdown Menu)
                 Box {
                     IconButton(onClick = { expandedMenu = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = Color.White)
@@ -414,7 +503,7 @@ fun LibraryScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
-        // --- HEADER OVO-STYLE (Navigasi Utama) ---
+        // --- HEADER OVO-STYLE ---
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
             UplayerHeaderCard(
                 totalSongs = allTracks.size,
@@ -1036,33 +1125,6 @@ fun TrackRow(
             }
 
             Text(track.formattedDuration(), color = UplayerTextSecondary, fontSize = 12.sp)
-        }
-    }
-}
-
-// ==================== PLACEHOLDER SCREEN ====================
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PlaceholderScreen(name: String, icon: ImageVector, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(name, color = Color.White, fontWeight = FontWeight.Bold) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Text("←", color = Color.White, fontSize = 24.sp)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
-        )
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, null, tint = UplayerOrange, modifier = Modifier.size(72.dp))
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "$name — Coming soon",
-                    color = UplayerTextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }
