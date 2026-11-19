@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -77,7 +78,6 @@ fun NowPlayingScreen(
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(playerManager.duration()) }
     
-    // State untuk Slider Lurus
     var isDraggingLinear by remember { mutableFloatStateOf(0f) }
     var dragValueLinear by remember { mutableFloatStateOf(0f) }
 
@@ -92,31 +92,32 @@ fun NowPlayingScreen(
         }
     }
 
-    // ===== GESTURE STATE =====
+    // ===== GESTURE STATE (Swipe on Album Art) =====
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     val pillAlpha = remember { Animatable(0f) }
     var pillText by remember { mutableStateOf("") }
-    val swipeThreshold = 120f 
+    val swipeThreshold = 100f 
 
     // ===== ROOT =====
     Box(modifier = Modifier.fillMaxSize().background(DarkBg)) {
 
-        // 1. BACKGROUND BLUR
+        // 1. BACKGROUND BLUR (Album Art Full)
         AsyncImage(
             model = AlbumArtHelper.getAlbumArtUri(track.albumId),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .blur(80.dp)
-                .alpha(0.5f)
+                .blur(60.dp)
+                .alpha(0.4f)
         )
 
+        // Overlay gelap agar teks jelas
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBg.copy(alpha = 0.8f))
+                .background(DarkBg.copy(alpha = 0.7f))
         )
 
         // 2. KONTEN UTAMA
@@ -124,7 +125,7 @@ fun NowPlayingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
-                // Tap lama di mana saja untuk menutup
+                // Tap lama di luar untuk menutup
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onLongPress = { onClose() }
@@ -143,6 +144,15 @@ fun NowPlayingScreen(
                 ) {
                     Icon(Icons.Filled.KeyboardArrowDown, "Tutup", tint = TextPrimary)
                 }
+                
+                // Info Audio (Opsional, seperti di gambar)
+                Text(
+                    text = "44.1 kHz | 16 bits | 1411 kbps",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+
                 IconButton(onClick = { /* TODO: Menu */ }) {
                     Text("⋮", color = TextPrimary, fontSize = 24.sp)
                 }
@@ -156,7 +166,7 @@ fun NowPlayingScreen(
                 Text(
                     text = track.title,
                     color = TextPrimary,
-                    fontSize = 22.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -165,7 +175,7 @@ fun NowPlayingScreen(
                 Text(
                     text = track.artist,
                     color = TextSecondary,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -173,17 +183,18 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // --- ALBUM ART DENGAN GESTURE ---
+            // --- ALBUM ART UTAMA (DENGAN GESTURE TAP & SWIPE) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    // Gesture untuk gambar album
+                    // Tap 1x untuk Play/Pause
                     .pointerInput(Unit) {
                         detectTapGestures(
-                            onDoubleTap = { playerManager.togglePlayPause() }
+                            onTap = { playerManager.togglePlayPause() }
                         )
                     }
+                    // Swipe Kiri/Kanan untuk Next/Prev
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { 
@@ -224,7 +235,7 @@ fun NowPlayingScreen(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(24.dp)) // Sudut membulat
+                        .clip(RoundedCornerShape(24.dp))
                         .background(Color.DarkGray)
                 )
 
@@ -281,52 +292,22 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // --- KONTROL BAWAH (Play/Pause Utama & Menu) ---
+            // --- KONTROL BAWAH (Hanya Love & Repeat) ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 48.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Tombol Play Utama
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(brush = Brush.linearGradient(colors = listOf(NeonPurple, NeonPink)))
-                        // Tetap bisa di-tap biasa (selain tap 2x di gambar)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = { playerManager.togglePlayPause() }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (isPlaying) "⏸" else "▶", 
-                        fontSize = 36.sp, 
-                        color = Color.White
-                    )
-                }
-            }
-            
-            // --- MENU TAMBAHAN (Love, Shuffle, dll) ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.Center, // Center
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { /* TODO */ }) {
-                    Text("🔁", fontSize = 20.sp, color = TextSecondary)
+                    Text("🔁", fontSize = 24.sp, color = TextSecondary)
                 }
+                
+                Spacer(Modifier.width(48.dp)) // Jarak antar tombol
+
                 IconButton(onClick = { /* TODO */ }) {
-                    Icon(Icons.Filled.FavoriteBorder, "Favorite", tint = TextSecondary, modifier = Modifier.size(24.dp))
-                }
-                IconButton(onClick = { /* TODO */ }) {
-                    Text("≡", fontSize = 26.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Filled.FavoriteBorder, "Favorite", tint = TextSecondary, modifier = Modifier.size(28.dp))
                 }
             }
         }
