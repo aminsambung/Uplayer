@@ -33,20 +33,22 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -54,9 +56,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -139,10 +138,10 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     val context = LocalContext.current
     val playerManager = remember { PlayerManager.getInstance(context) }
-    var selectedTab by remember { mutableStateOf(0) }
     var showNowPlaying by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showWallpaper by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     var tagEditPath by remember { mutableStateOf<String?>(null) }
     var selectedPlaylist by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var selectedAlbum by remember { mutableStateOf<String?>(null) }
@@ -155,9 +154,7 @@ fun MainScreen() {
     }
 
     selectedAlbum?.let { albumName ->
-        val albumTracks = allTracks
-            .filter { it.album == albumName }
-            .sortedBy { it.title }
+        val albumTracks = allTracks.filter { it.album == albumName }.sortedBy { it.title }
         AlbumDetailScreen(
             albumName = albumName,
             tracks = albumTracks,
@@ -203,80 +200,47 @@ fun MainScreen() {
         )
         return
     }
+    
+    if (showSearch) {
+        PlaceholderScreen(
+            name = "Search",
+            icon = Icons.Filled.Search,
+            onBack = { showSearch = false }
+        )
+        return
+    }
 
-    // ===== MAIN SCAFFOLD =====
+    // ===== MAIN SCAFFOLD (Tanpa Bottom Navigation) =====
     Scaffold(
         containerColor = UplayerDarkBg,
         bottomBar = {
-            Column {
-                playerManager.currentTrack?.let { track ->
-                    MiniPlayer(
-                        track = track,
-                        isPlaying = playerManager.isPlaying,
-                        onPlayPause = { playerManager.togglePlayPause() },
-                        onNext = { playerManager.next() },
-                        onExpand = { showNowPlaying = true }
-                    )
-                }
-                NavigationBar(
-                    containerColor = UplayerSurface.copy(alpha = 0.95f), // Sedikit transparan
-                    contentColor = Color.White,
-                    tonalElevation = 0.dp
-                ) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Filled.Home, null) },
-                        label = { Text("Library") },
-                        colors = navItemColors()
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Filled.Search, null) },
-                        label = { Text("Search") },
-                        colors = navItemColors()
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Filled.Settings, null) },
-                        label = { Text("Settings") },
-                        colors = navItemColors()
-                    )
-                }
+            playerManager.currentTrack?.let { track ->
+                MiniPlayer(
+                    track = track,
+                    isPlaying = playerManager.isPlaying,
+                    onPlayPause = { playerManager.togglePlayPause() },
+                    onNext = { playerManager.next() },
+                    onExpand = { showNowPlaying = true }
+                )
             }
         }
     ) { padding ->
         Box(Modifier.padding(padding)) {
-            when (selectedTab) {
-                0 -> LibraryScreen(
-                    playerManager = playerManager,
-                    onEditTag = { path -> tagEditPath = path },
-                    onTracksLoaded = { tracks -> allTracks = tracks },
-                    onPlaylistClick = { id, name -> selectedPlaylist = id to name },
-                    onAlbumClick = { albumName -> selectedAlbum = albumName }
-                )
-                1 -> PlaceholderScreen("Search", Icons.Filled.Search)
-                2 -> SettingsScreen(
-                    onOpenEqualizer = { showEqualizer = true },
-                    onOpenWallpaper = { showWallpaper = true }
-                )
-            }
+            LibraryScreen(
+                playerManager = playerManager,
+                onEditTag = { path -> tagEditPath = path },
+                onTracksLoaded = { tracks -> allTracks = tracks },
+                onPlaylistClick = { id, name -> selectedPlaylist = id to name },
+                onAlbumClick = { albumName -> selectedAlbum = albumName },
+                onSearchClick = { showSearch = true },
+                onOpenEqualizer = { showEqualizer = true },
+                onOpenWallpaper = { showWallpaper = true }
+            )
         }
     }
 }
 
-@Composable
-private fun navItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = UplayerOrange,
-    selectedTextColor = UplayerOrange,
-    indicatorColor = Color.Transparent, // Hilangkan kapsul background
-    unselectedIconColor = UplayerTextSecondary,
-    unselectedTextColor = UplayerTextSecondary
-)
-
-// ==================== MINI PLAYER (Gradient Style) ====================
+// ==================== MINI PLAYER ====================
 @Composable
 fun MiniPlayer(
     track: Track,
@@ -285,7 +249,6 @@ fun MiniPlayer(
     onNext: () -> Unit,
     onExpand: () -> Unit
 ) {
-    // Padding luar agar mini player terlihat melayang
     Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
             modifier = Modifier
@@ -342,7 +305,10 @@ fun LibraryScreen(
     onEditTag: (String) -> Unit,
     onTracksLoaded: (List<Track>) -> Unit,
     onPlaylistClick: (Long, String) -> Unit,
-    onAlbumClick: (String) -> Unit
+    onAlbumClick: (String) -> Unit,
+    onSearchClick: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+    onOpenWallpaper: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -375,6 +341,8 @@ fun LibraryScreen(
     var selectedTrackForAction by remember { mutableStateOf<Track?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    
+    var expandedMenu by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
@@ -408,21 +376,53 @@ fun LibraryScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
+        
+        // --- TOP BAR BARU (Search & Titik Tiga) ---
         TopAppBar(
-            title = {
-                Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold)
+            title = { 
+                Text("🎧  Uplayer", color = Color.White, fontWeight = FontWeight.Bold) 
             },
             actions = {
-                if (selectedTab == 2) {
-                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                        Icon(Icons.Filled.Add, "Buat Playlist", tint = UplayerOrange)
+                // Ikon Search
+                IconButton(onClick = onSearchClick) {
+                    Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.White)
+                }
+                // Ikon Titik Tiga (Dropdown Menu)
+                Box {
+                    IconButton(onClick = { expandedMenu = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(
+                        expanded = expandedMenu,
+                        onDismissRequest = { expandedMenu = false },
+                        modifier = Modifier.background(UplayerSurface)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Equalizer", color = Color.White) },
+                            onClick = {
+                                expandedMenu = false
+                                onOpenEqualizer()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Wallpaper", color = Color.White) },
+                            onClick = {
+                                expandedMenu = false
+                                onOpenWallpaper()
+                            }
+                        )
                     }
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
 
-        // MENGGANTI TABROW DENGAN LAZYROW FILTERCHIP (Gaya Pill)
+        // --- HEADER OVO-STYLE ---
+        if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
+            UplayerHeaderCard(totalSongs = allTracks.size)
+        }
+
+        // --- PILL FILTER CHIPS (Teks Murni) ---
         if (hasPermission && !isLoading && allTracks.isNotEmpty()) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -449,7 +449,7 @@ fun LibraryScreen(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         label = { 
-                            Text("❤️ ${favoriteIds.size}", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) 
+                            Text("Favorit (${favoriteIds.size})", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) 
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = UplayerPurple,
@@ -465,7 +465,7 @@ fun LibraryScreen(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
                         label = { 
-                            Text("📝 ${playlists.size}", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) 
+                            Text("Playlist (${playlists.size})", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) 
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = UplayerPurple,
@@ -506,13 +506,9 @@ fun LibraryScreen(
             selectedTab == 2 -> {
                 PlaylistList(
                     playlists = playlists,
-                    onClick = { playlist ->
-                        onPlaylistClick(playlist.id, playlist.name)
-                    },
+                    onClick = { playlist -> onPlaylistClick(playlist.id, playlist.name) },
                     onDelete = { playlist ->
-                        scope.launch {
-                            PlaylistRepository.deletePlaylist(context, playlist.id)
-                        }
+                        scope.launch { PlaylistRepository.deletePlaylist(context, playlist.id) }
                     },
                     onCreateClick = { showCreatePlaylistDialog = true }
                 )
@@ -529,20 +525,17 @@ fun LibraryScreen(
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp) // Hapus Divider, beri jarak
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
                 ) {
                     items(displayedTracks, key = { it.id }) { track ->
                         TrackRow(
                             track = track,
-                            isPlaying = playerManager.currentTrack?.id == track.id
-                                    && playerManager.isPlaying,
+                            isPlaying = playerManager.currentTrack?.id == track.id && playerManager.isPlaying,
                             isFavorite = track.id in favoriteIds,
                             onClick = { playerManager.playTrack(track, displayedTracks) },
                             onLongClick = { selectedTrackForAction = track },
                             onFavoriteToggle = {
-                                scope.launch {
-                                    FavoriteRepository.toggleFavorite(context, track.id)
-                                }
+                                scope.launch { FavoriteRepository.toggleFavorite(context, track.id) }
                             }
                         )
                     }
@@ -570,9 +563,7 @@ fun LibraryScreen(
                     selectedTrackForAction = null
                 },
                 onFavoriteToggle = {
-                    scope.launch {
-                        FavoriteRepository.toggleFavorite(context, track.id)
-                    }
+                    scope.launch { FavoriteRepository.toggleFavorite(context, track.id) }
                     selectedTrackForAction = null
                 },
                 onAddToPlaylist = { showAddToPlaylistSheet = true }
@@ -596,9 +587,7 @@ fun LibraryScreen(
                     if (track != null) {
                         scope.launch {
                             PlaylistRepository.addTrackToPlaylist(
-                                context,
-                                playlist.id,
-                                track.id,
+                                context, playlist.id, track.id,
                                 position = (System.currentTimeMillis() / 1000).toInt()
                             )
                         }
@@ -619,21 +608,100 @@ fun LibraryScreen(
         CreatePlaylistDialog(
             onDismiss = { showCreatePlaylistDialog = false },
             onCreate = { name ->
-                scope.launch {
-                    PlaylistRepository.createPlaylist(context, name)
-                }
+                scope.launch { PlaylistRepository.createPlaylist(context, name) }
                 showCreatePlaylistDialog = false
             }
         )
     }
 }
 
+// ==================== HEADER CARD (OVO Style) ====================
+@Composable
+fun UplayerHeaderCard(totalSongs: Int) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF5B21B6), // Ungu Gelap
+                        Color(0xFF3B82F6)  // Biru Terang
+                    )
+                )
+            )
+            .padding(20.dp)
+    ) {
+        Column {
+            // Bagian Atas
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column {
+                    Text("UPlayer", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Total Musik", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                    Text("$totalSongs Lagu", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // Tombol UPlayer Pro
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🎵", fontSize = 14.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text("UPlayer Pro", color = Color(0xFF5B21B6), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(4.dp))
+                    Text("›", color = Color(0xFF5B21B6), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            // Bagian Bawah (4 Menu)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                HeaderMenuItem("🎵", "Song")
+                HeaderMenuItem("❤️", "Favorit")
+                HeaderMenuItem("📝", "Playlist")
+                HeaderMenuItem("💿", "Album")
+            }
+        }
+    }
+}
+
+@Composable
+fun HeaderMenuItem(emoji: String, label: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { /* TODO: Aksi klik menu */ }
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = emoji, fontSize = 24.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(text = label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
 // ==================== ALBUM GRID ====================
 @Composable
-fun AlbumGrid(
-    tracks: List<Track>,
-    onClick: (String) -> Unit
-) {
+fun AlbumGrid(tracks: List<Track>, onClick: (String) -> Unit) {
     val albums = tracks
         .groupBy { it.album }
         .filterKeys { it.isNotBlank() && it != "Unknown Album" }
@@ -653,12 +721,7 @@ fun AlbumGrid(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("💿", fontSize = 64.sp)
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Belum ada album",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Belum ada album", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         } else {
@@ -668,16 +731,11 @@ fun AlbumGrid(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(
-                    items = albums,
-                    key = { it.first }
-                ) { (albumName, albumTracks) ->
+                items(items = albums, key = { it.first }) { (albumName, albumTracks) ->
                     AlbumCard(
                         albumName = albumName,
                         trackCount = albumTracks.size,
-                        coverUrl = AlbumArtHelper.getAlbumArtUri(
-                            albumTracks.first().albumId
-                        ),
+                        coverUrl = AlbumArtHelper.getAlbumArtUri(albumTracks.first().albumId),
                         onClick = { onClick(albumName) }
                     )
                 }
@@ -687,17 +745,8 @@ fun AlbumGrid(
 }
 
 @Composable
-fun AlbumCard(
-    albumName: String,
-    trackCount: Int,
-    coverUrl: android.net.Uri,
-    onClick: () -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    ) {
+fun AlbumCard(albumName: String, trackCount: Int, coverUrl: android.net.Uri, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable { onClick() }) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -713,19 +762,9 @@ fun AlbumCard(
             )
         }
         Spacer(Modifier.height(8.dp))
-        Text(
-            text = albumName,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            maxLines = 1
-        )
+        Text(albumName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
         Spacer(Modifier.height(2.dp))
-        Text(
-            text = "$trackCount lagu",
-            color = UplayerTextSecondary,
-            fontSize = 12.sp
-        )
+        Text("$trackCount lagu", color = UplayerTextSecondary, fontSize = 12.sp)
     }
 }
 
@@ -742,12 +781,7 @@ fun PlaylistList(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("📝", fontSize = 64.sp)
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    "Belum ada playlist",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Belum ada playlist", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = onCreateClick,
@@ -763,42 +797,31 @@ fun PlaylistList(
     } else {
         LazyColumn(
             contentPadding = PaddingValues(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp) // Jarak antar card
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(playlists, key = { it.id }) { playlist ->
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp) // Padding luar card
-                        .clip(RoundedCornerShape(16.dp)) // Sudut card
-                        .background(UplayerSurface) // Warna background card
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(UplayerSurface)
                         .clickable { onClick(playlist) }
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(UplayerSurface2),
+                        Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(UplayerSurface2),
                         contentAlignment = Alignment.Center
-                    ) {
-                        Text("📝", fontSize = 24.sp)
-                    }
+                    ) { Text("📝", fontSize = 24.sp) }
+                    
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        playlist.name,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        modifier = Modifier.weight(1f)
+                        playlist.name, color = Color.White, fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp, modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { onDelete(playlist) }) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            "Hapus playlist",
-                            tint = UplayerTextSecondary
-                        )
+                        Icon(Icons.Filled.Delete, "Hapus playlist", tint = UplayerTextSecondary)
                     }
                 }
             }
@@ -809,62 +832,30 @@ fun PlaylistList(
 // ==================== BOTTOM SHEETS ====================
 @Composable
 fun TrackActionSheet(
-    track: Track,
-    isFavorite: Boolean,
-    onDismiss: () -> Unit,
-    onEditTag: () -> Unit,
-    onPlay: () -> Unit,
-    onFavoriteToggle: () -> Unit,
-    onAddToPlaylist: () -> Unit
+    track: Track, isFavorite: Boolean, onDismiss: () -> Unit, onEditTag: () -> Unit,
+    onPlay: () -> Unit, onFavoriteToggle: () -> Unit, onAddToPlaylist: () -> Unit
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp)
-    ) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(UplayerSurface2)
-            ) {
+            Box(Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(UplayerSurface2)) {
                 AsyncImage(
                     model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    track.title,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    maxLines = 2
-                )
-                Text(
-                    track.artist,
-                    color = UplayerTextSecondary,
-                    fontSize = 13.sp,
-                    maxLines = 1
-                )
+                Text(track.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2)
+                Text(track.artist, color = UplayerTextSecondary, fontSize = 13.sp, maxLines = 1)
             }
         }
         Divider(color = UplayerSurface2)
         SheetAction("▶", "Putar Sekarang", onPlay)
-        SheetAction(
-            if (isFavorite) "💔" else "❤️",
-            if (isFavorite) "Hapus dari Favorit" else "Tambah ke Favorit",
-            onFavoriteToggle
-        )
+        SheetAction(if (isFavorite) "💔" else "❤️", if (isFavorite) "Hapus dari Favorit" else "Tambah ke Favorit", onFavoriteToggle)
         SheetAction("➕", "Tambah ke Playlist", onAddToPlaylist)
         SheetAction("✏️", "Edit Info Lagu", onEditTag)
     }
@@ -872,29 +863,18 @@ fun TrackActionSheet(
 
 @Composable
 fun AddToPlaylistSheet(
-    playlists: List<PlaylistEntity>,
-    onSelect: (PlaylistEntity) -> Unit,
-    onCreateNew: () -> Unit
+    playlists: List<PlaylistEntity>, onSelect: (PlaylistEntity) -> Unit, onCreateNew: () -> Unit
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp)
-    ) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
         Text(
-            "Tambah ke Playlist",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+            "Tambah ke Playlist", color = Color.White, fontWeight = FontWeight.Bold,
+            fontSize = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
         Divider(color = UplayerSurface2)
         SheetAction("➕", "Buat Playlist Baru", onCreateNew)
         if (playlists.isEmpty()) {
             Text(
-                "Belum ada playlist",
-                color = UplayerTextSecondary,
-                fontSize = 13.sp,
+                "Belum ada playlist", color = UplayerTextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
             )
         } else {
@@ -906,69 +886,41 @@ fun AddToPlaylistSheet(
 }
 
 @Composable
-private fun SheetAction(
-    emoji: String,
-    label: String,
-    onClick: () -> Unit
-) {
+private fun SheetAction(emoji: String, label: String, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(emoji, fontSize = 20.sp)
         Spacer(Modifier.width(20.dp))
-        Text(
-            label,
-            color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 // ==================== DIALOGS ====================
 @Composable
-fun CreatePlaylistDialog(
-    onDismiss: () -> Unit,
-    onCreate: (String) -> Unit
-) {
+fun CreatePlaylistDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
-
     AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = UplayerSurface,
+        onDismissRequest = onDismiss, containerColor = UplayerSurface,
         title = { Text("Buat Playlist Baru", color = Color.White, fontWeight = FontWeight.Bold) },
         text = {
             OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nama Playlist") },
-                singleLine = true,
+                value = name, onValueChange = { name = it }, label = { Text("Nama Playlist") }, singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = UplayerOrange,
-                    unfocusedBorderColor = UplayerSurface2,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedLabelColor = UplayerOrange,
-                    unfocusedLabelColor = UplayerTextSecondary
+                    focusedBorderColor = UplayerOrange, unfocusedBorderColor = UplayerSurface2,
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedLabelColor = UplayerOrange, unfocusedLabelColor = UplayerTextSecondary
                 )
             )
         },
         confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank()) onCreate(name.trim()) },
-                enabled = name.isNotBlank()
-            ) {
+            TextButton(onClick = { if (name.isNotBlank()) onCreate(name.trim()) }, enabled = name.isNotBlank()) {
                 Text("Buat", color = UplayerOrange, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Batal", color = UplayerTextSecondary)
-            }
+            TextButton(onClick = onDismiss) { Text("Batal", color = UplayerTextSecondary) }
         }
     )
 }
@@ -977,26 +929,20 @@ fun CreatePlaylistDialog(
 @Composable
 fun PermissionContent(onGrant: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🎵", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
-        Text(
-            "Izinkan Akses Musik", color = Color.White,
-            fontSize = 20.sp, fontWeight = FontWeight.Bold
-        )
+        Text("Izinkan Akses Musik", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         Text(
             "Untuk memutar musik dari perangkatmu, Uplayer butuh izin.",
-            color = UplayerTextSecondary, fontSize = 14.sp,
-            textAlign = TextAlign.Center
+            color = UplayerTextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(32.dp))
         Button(
-            onClick = onGrant,
-            colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange),
+            onClick = onGrant, colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange),
             shape = RoundedCornerShape(16.dp)
         ) { Text("Izinkan Akses Musik", fontWeight = FontWeight.Bold) }
     }
@@ -1016,21 +962,16 @@ fun LoadingContent() {
 @Composable
 fun EmptyContent(onRetry: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🔍", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
-        Text(
-            "Tidak Ada Musik", color = Color.White,
-            fontSize = 20.sp, fontWeight = FontWeight.Bold
-        )
+        Text("Tidak Ada Musik", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(32.dp))
-        Button(
-            onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)
-        ) { Text("Scan Ulang") }
+        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = UplayerOrange)) {
+            Text("Scan Ulang")
+        }
     }
 }
 
@@ -1040,25 +981,18 @@ fun EmptyFavoritesContent() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("❤️", fontSize = 64.sp)
             Spacer(Modifier.height(16.dp))
-            Text(
-                "Belum ada favorit",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Belum ada favorit", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(
                 "Tap ikon hati di lagu untuk menambahkan",
-                color = UplayerTextSecondary,
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
+                color = UplayerTextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp)
             )
         }
     }
 }
 
-// ==================== TRACK ROW (Card Style) ====================
+// ==================== TRACK ROW ====================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
@@ -1069,7 +1003,6 @@ fun TrackRow(
     onLongClick: () -> Unit = {},
     onFavoriteToggle: () -> Unit = {}
 ) {
-    // Box luar untuk padding (jarak antar card)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1078,15 +1011,12 @@ fun TrackRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp)) // Sudut melengkung
+                .clip(RoundedCornerShape(16.dp))
                 .background(
                     if (isPlaying) UplayerPurple.copy(alpha = 0.3f)
-                    else UplayerSurface // Warna card
+                    else UplayerSurface
                 )
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1098,14 +1028,12 @@ fun TrackRow(
             ) {
                 AsyncImage(
                     model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
                 if (isPlaying) {
                     Box(
-                        Modifier.fillMaxSize()
-                            .background(UplayerPurple.copy(alpha = 0.5f)),
+                        Modifier.fillMaxSize().background(UplayerPurple.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center
                     ) { Text("⏸", fontSize = 20.sp, color = Color.White) }
                 }
@@ -1117,83 +1045,37 @@ fun TrackRow(
                 Text(
                     track.title,
                     color = if (isPlaying) UplayerOrange else Color.White,
-                    fontWeight = FontWeight.Bold, // Bold
-                    fontSize = 15.sp, maxLines = 1
+                    fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    track.artist, color = UplayerTextSecondary,
-                    fontSize = 12.sp, maxLines = 1
-                )
+                Text(track.artist, color = UplayerTextSecondary, fontSize = 12.sp, maxLines = 1)
             }
 
             IconButton(onClick = onFavoriteToggle) {
                 Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite
-                                  else Icons.Filled.FavoriteBorder,
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
                     tint = if (isFavorite) UplayerRed else UplayerTextSecondary
                 )
             }
 
-            Text(
-                track.formattedDuration(),
-                color = UplayerTextSecondary, fontSize = 12.sp
-            )
+            Text(track.formattedDuration(), color = UplayerTextSecondary, fontSize = 12.sp)
         }
     }
 }
 
-// ==================== SETTINGS SCREEN ====================
+// ==================== PLACEHOLDER SCREEN ====================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    onOpenEqualizer: () -> Unit,
-    onOpenWallpaper: () -> Unit
-) {
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Settings", color = Color.White, fontWeight = FontWeight.Bold) },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
-        )
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            SettingsItem("Equalizer", "Atur nada musik", onOpenEqualizer)
-            SettingsItem("Wallpaper", "Kustom tampilan Now Playing", onOpenWallpaper)
-        }
-    }
-}
-
-@Composable
-fun SettingsItem(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)) // Card melengkung
-            .background(UplayerSurface) // Warna surface
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 16.dp), // Padding dalam card
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = UplayerTextSecondary, fontSize = 12.sp)
-        }
-        Text("›", color = UplayerTextSecondary, fontSize = 24.sp)
-    }
-    Spacer(Modifier.height(8.dp)) // Jarak antar item di Settings
-}
-
-// ==================== PLACEHOLDER ====================
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PlaceholderScreen(name: String, icon: ImageVector) {
+fun PlaceholderScreen(name: String, icon: ImageVector, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(name, color = Color.White, fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Text("←", color = Color.White, fontSize = 24.sp)
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = UplayerDarkBg)
         )
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1202,8 +1084,7 @@ fun PlaceholderScreen(name: String, icon: ImageVector) {
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "$name — Coming soon",
-                    color = UplayerTextSecondary, fontSize = 14.sp,
-                    textAlign = TextAlign.Center
+                    color = UplayerTextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center
                 )
             }
         }
@@ -1214,26 +1095,16 @@ fun PlaceholderScreen(name: String, icon: ImageVector) {
 suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> =
     withContext(Dispatchers.IO) {
         val result = mutableListOf<Track>()
-
         val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA
         )
-
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            null,
-            sortOrder
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, null, sortOrder
         )?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
@@ -1245,29 +1116,17 @@ suspend fun loadTracksFromDevice(context: android.content.Context): List<Track> 
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
-                val uri = ContentUris.withAppendedId(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                    id
-                ).toString()
-
+                val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
                 result.add(
                     Track(
-                        id = id,
-                        title = cursor.getString(titleCol) ?: "Unknown",
-                        artist = cursor.getString(artistCol)
-                            ?.takeIf { it.isNotBlank() && it != "<unknown>" }
-                            ?: "Unknown Artist",
-                        album = cursor.getString(albumCol)
-                            ?.takeIf { it.isNotBlank() && it != "<unknown>" }
-                            ?: "Unknown Album",
-                        albumId = cursor.getLong(albumIdCol),
-                        durationMs = cursor.getLong(durationCol),
-                        uri = uri,
-                        filePath = cursor.getString(dataCol) ?: ""
+                        id = id, title = cursor.getString(titleCol) ?: "Unknown",
+                        artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Artist",
+                        album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown Album",
+                        albumId = cursor.getLong(albumIdCol), durationMs = cursor.getLong(durationCol),
+                        uri = uri, filePath = cursor.getString(dataCol) ?: ""
                     )
                 )
             }
         }
-
         result
     }
