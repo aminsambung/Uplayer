@@ -1,12 +1,8 @@
 package com.uplayer.music.player
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -48,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -81,26 +76,15 @@ fun NowPlayingScreen(
     // ===== PROGRESS STATE =====
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(playerManager.duration()) }
-    var isDragging by remember { mutableFloatStateOf(0f) }
-    var dragValue by remember { mutableFloatStateOf(0f) }
-
-    // ===== ROTATION ANIMATION =====
-    val infiniteTransition = rememberInfiniteTransition(label = "album_rotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-    val currentRotation = if (isPlaying) rotation else 0f
+    
+    // State untuk Slider Lurus
+    var isDraggingLinear by remember { mutableFloatStateOf(0f) }
+    var dragValueLinear by remember { mutableFloatStateOf(0f) }
 
     // ===== UPDATE POSITION =====
     LaunchedEffect(track.id, isPlaying) {
         while (true) {
-            if (isDragging == 0f) {
+            if (isDraggingLinear == 0f) {
                 position = playerManager.currentPosition().toFloat()
                 duration = playerManager.duration()
             }
@@ -108,14 +92,12 @@ fun NowPlayingScreen(
         }
     }
 
-    // ===== GESTURE & ANIMASI PILL STATE =====
+    // ===== GESTURE STATE =====
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     val pillAlpha = remember { Animatable(0f) }
     var pillText by remember { mutableStateOf("") }
-    
-    // Batas geser (dalam pixel) untuk memicu Next/Prev
-    val swipeThreshold = 150f 
+    val swipeThreshold = 120f 
 
     // ===== ROOT =====
     Box(modifier = Modifier.fillMaxSize().background(DarkBg)) {
@@ -128,77 +110,30 @@ fun NowPlayingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .blur(80.dp)
+                .alpha(0.5f)
         )
 
-        // Overlay gelap
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBg.copy(alpha = 0.85f))
+                .background(DarkBg.copy(alpha = 0.8f))
         )
 
-        // 2. KONTEN UTAMA DENGAN GESTURE
+        // 2. KONTEN UTAMA
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
+                // Tap lama di mana saja untuk menutup
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = {
-                            // Ketuk 2x: Play/Pause
-                            playerManager.togglePlayPause()
-                        },
-                        onLongPress = {
-                            // Tekan Lama: Kembali ke pemutar musik (tutup layar)
-                            onClose()
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { 
-                            scope.launch {
-                                offsetX.snapTo(0f) 
-                                pillAlpha.snapTo(1f)
-                            }
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            scope.launch {
-                                val newOffset = offsetX.value + dragAmount.x
-                                offsetX.snapTo(newOffset)
-                                
-                                // Teks pill dinamis sesuai arah geser
-                                pillText = if (newOffset > 0) "⏮ Previous" else "Next ⏭"
-                            }
-                        },
-                        onDragEnd = {
-                            scope.launch {
-                                if (offsetX.value > swipeThreshold) {
-                                    playerManager.previous()
-                                } else if (offsetX.value < -swipeThreshold) {
-                                    playerManager.next()
-                                }
-                                // Memantul kembali ke tengah
-                                offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
-                                // Memudarkan pill
-                                pillAlpha.animateTo(0f, animationSpec = tween(300))
-                            }
-                        },
-                        onDragCancel = {
-                            scope.launch {
-                                offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
-                                pillAlpha.animateTo(0f, animationSpec = tween(300))
-                            }
-                        }
+                        onLongPress = { onClose() }
                     )
                 }
         ) {
-            // TOP BAR
+            // --- TOP BAR ---
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 24.dp, bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -208,13 +143,12 @@ fun NowPlayingScreen(
                 ) {
                     Icon(Icons.Filled.KeyboardArrowDown, "Tutup", tint = TextPrimary)
                 }
-                Text("Sedang Diputar", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 IconButton(onClick = { /* TODO: Menu */ }) {
                     Text("⋮", color = TextPrimary, fontSize = 24.sp)
                 }
             }
 
-            // INFO LAGU
+            // --- INFO LAGU ---
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -237,81 +171,88 @@ fun NowPlayingScreen(
                 )
             }
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // ALBUM ART + PILL ANIMATION
+            // --- ALBUM ART DENGAN GESTURE ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f),
+                    .aspectRatio(1f)
+                    // Gesture untuk gambar album
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = { playerManager.togglePlayPause() }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { 
+                                scope.launch {
+                                    offsetX.snapTo(0f) 
+                                    pillAlpha.snapTo(1f)
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                scope.launch {
+                                    val newOffset = offsetX.value + dragAmount.x
+                                    offsetX.snapTo(newOffset)
+                                    pillText = if (newOffset > 0) "⏮ Previous" else "Next ⏭"
+                                }
+                            },
+                            onDragEnd = {
+                                scope.launch {
+                                    if (offsetX.value > swipeThreshold) playerManager.previous()
+                                    else if (offsetX.value < -swipeThreshold) playerManager.next()
+                                    offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                                    pillAlpha.animateTo(0f, animationSpec = tween(300))
+                                }
+                            },
+                            onDragCancel = {
+                                scope.launch {
+                                    offsetX.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                                    pillAlpha.animateTo(0f, animationSpec = tween(300))
+                                }
+                            }
+                        )
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                // Efek cahaya di belakang
-                Box(
+                AsyncImage(
+                    model = AlbumArtHelper.getAlbumArtUri(track.albumId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .aspectRatio(1f)
-                        .background(NeonPurple.copy(alpha = 0.3f), CircleShape)
-                        .blur(40.dp)
-                )
-
-                // Gambar Album Berputar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .aspectRatio(1f)
-                        .rotate(currentRotation)
-                        .clip(CircleShape)
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(24.dp)) // Sudut membulat
                         .background(Color.DarkGray)
-                ) {
-                    AsyncImage(
-                        model = AlbumArtHelper.getAlbumArtUri(track.albumId),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    // Lubang piringan hitam
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(Color.Black, CircleShape)
-                            .align(Alignment.Center)
-                    )
-                }
+                )
 
                 // ANIMASI PILL (Muncul saat digeser)
                 Box(
                     modifier = Modifier
                         .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                         .alpha(pillAlpha.value)
-                        .background(
-                            color = NeonPink,
-                            shape = RoundedCornerShape(50)
-                        )
+                        .background(color = NeonPink, shape = RoundedCornerShape(50))
                         .padding(horizontal = 24.dp, vertical = 12.dp)
                 ) {
-                    Text(
-                        text = pillText,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
+                    Text(pillText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(32.dp))
 
-            // SLIDER & WAKTU
+            // --- SLIDER LURUS & WAKTU ---
             Column(Modifier.fillMaxWidth()) {
                 Slider(
-                    value = if (isDragging == 1f) dragValue else position,
+                    value = if (isDraggingLinear == 1f) dragValueLinear else position,
                     onValueChange = { v ->
-                        isDragging = 1f
-                        dragValue = v
+                        isDraggingLinear = 1f
+                        dragValueLinear = v
                     },
                     onValueChangeFinished = {
-                        playerManager.seekTo(dragValue.toLong())
-                        isDragging = 0f
+                        playerManager.seekTo(dragValueLinear.toLong())
+                        isDraggingLinear = 0f
                     },
                     valueRange = 0f..(duration.coerceAtLeast(1).toFloat()),
                     colors = SliderDefaults.colors(
@@ -320,68 +261,71 @@ fun NowPlayingScreen(
                         inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )
+                
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatMs(if (isDragging == 1f) dragValue.toLong() else position.toLong()), color = TextSecondary, fontSize = 12.sp)
-                    Text(formatMs(duration), color = TextSecondary, fontSize = 12.sp)
+                    Text(
+                        text = formatMs(if (isDraggingLinear == 1f) dragValueLinear.toLong() else position.toLong()),
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = formatMs(duration),
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.weight(1f))
 
-            // KONTROL PLAY / PAUSE
+            // --- KONTROL BAWAH (Play/Pause Utama & Menu) ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 48.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { playerManager.previous() }) {
-                    Text("⏮", fontSize = 32.sp, color = TextPrimary)
-                }
-
+                // Tombol Play Utama
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(brush = Brush.linearGradient(colors = listOf(NeonPurple, NeonPink))),
+                        .background(brush = Brush.linearGradient(colors = listOf(NeonPurple, NeonPink)))
+                        // Tetap bisa di-tap biasa (selain tap 2x di gambar)
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = { playerManager.togglePlayPause() }
+                            )
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    IconButton(
-                        onClick = { playerManager.togglePlayPause() },
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Text(if (isPlaying) "⏸" else "▶", fontSize = 36.sp, color = Color.White)
-                    }
-                }
-
-                IconButton(onClick = { playerManager.next() }) {
-                    Text("⏭", fontSize = 32.sp, color = TextPrimary)
+                    Text(
+                        text = if (isPlaying) "⏸" else "▶", 
+                        fontSize = 36.sp, 
+                        color = Color.White
+                    )
                 }
             }
-
-            Spacer(Modifier.height(32.dp))
-
-            // BOTTOM CONTROLS
+            
+            // --- MENU TAMBAHAN (Love, Shuffle, dll) ---
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { playerManager.cycleRepeatMode() }) {
-                    Text("🔁", fontSize = 20.sp, color = if (playerManager.repeatMode > 0) NeonPink else TextSecondary)
+                IconButton(onClick = { /* TODO */ }) {
+                    Text("🔁", fontSize = 20.sp, color = TextSecondary)
                 }
-                IconButton(onClick = { /* TODO: Favorit */ }) {
+                IconButton(onClick = { /* TODO */ }) {
                     Icon(Icons.Filled.FavoriteBorder, "Favorite", tint = TextSecondary, modifier = Modifier.size(24.dp))
                 }
-                IconButton(onClick = { /* TODO: Equalizer */ }) {
-                    Text("🎚️", fontSize = 20.sp, color = TextSecondary)
-                }
-                IconButton(onClick = { /* TODO: Share */ }) {
-                    Text("↗️", fontSize = 20.sp, color = TextSecondary)
-                }
-                IconButton(onClick = { /* TODO: Queue */ }) {
+                IconButton(onClick = { /* TODO */ }) {
                     Text("≡", fontSize = 26.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                 }
             }
